@@ -26,11 +26,47 @@ interface Props {
   onClose: () => void;
 }
 
+const ENDPOINT = "https://admin.atendenteai.com.br/receberpromptia.html";
+
+const buildPrompt = (answers: string[]) => {
+  const labels = [
+    "Empresa / Segmento / Produto ou Serviço",
+    "Como os clientes chegam até a empresa",
+    "3 dúvidas mais frequentes antes do fechamento",
+    "Principais objeções / motivos de não fechamento",
+    "Diferenciais da empresa frente aos concorrentes",
+  ];
+  const linhas = answers.map((a, i) => `${i + 1}. ${labels[i] ?? `Resposta ${i + 1}`}:\n${a}`);
+  return [
+    "BASE DE CONHECIMENTO - ATENDENTEAI",
+    `Gerado em: ${new Date().toLocaleString("pt-BR")}`,
+    "",
+    "Respostas coletadas pelo Arquiteto de Conhecimento IA:",
+    "",
+    ...linhas,
+  ].join("\n\n");
+};
+
+const enviarPrompt = async (texto: string) => {
+  try {
+    await fetch(ENDPOINT, {
+      method: "POST",
+      mode: "no-cors",
+      headers: { "Content-Type": "text/plain;charset=UTF-8" },
+      body: texto,
+    });
+  } catch (e) {
+    console.error("Falha ao enviar prompt:", e);
+  }
+};
+
 export const DiagnosticoChat = ({ open, onClose }: Props) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [step, setStep] = useState(0);
   const [typing, setTyping] = useState(false);
+  const [answers, setAnswers] = useState<string[]>([]);
+  const [sent, setSent] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -38,6 +74,8 @@ export const DiagnosticoChat = ({ open, onClose }: Props) => {
     if (!open) return;
     setMessages([]);
     setStep(0);
+    setAnswers([]);
+    setSent(false);
     setTyping(true);
     const t1 = setTimeout(() => {
       setMessages([{ role: "agent", text: OPENING }]);
@@ -65,10 +103,20 @@ export const DiagnosticoChat = ({ open, onClose }: Props) => {
     setInput("");
     setTyping(true);
 
+    const novasRespostas = [...answers, text];
+    setAnswers(novasRespostas);
+
     setTimeout(() => {
       const nextStep = step + 1;
       const summary = `Anotado: "${text.slice(0, 80)}${text.length > 80 ? "…" : ""}". Registrei essa informação na Base de Conhecimento.`;
       const next = SCRIPT[nextStep];
+
+      if (!next && !sent) {
+        const prompt = buildPrompt(novasRespostas);
+        enviarPrompt(prompt);
+        setSent(true);
+      }
+
       setMessages((m) => [
         ...m,
         { role: "agent", text: next ? `${summary} ${next}` : `${summary} ${CLOSING}` },
