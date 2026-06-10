@@ -331,6 +331,8 @@ export const DiagnosticoChat = ({ open, onClose, promptId }: Props) => {
   const inputRef = useRef<HTMLInputElement>(null);
   const conversationIdRef = useRef<string>(gerarConversationId());
   const historyRef = useRef<ImplantadorChatHistoryItem[]>([]);
+  const enviadoFinalRef = useRef<boolean>(false);
+
 
   // Reinicia a conversa a cada abertura do chat
   useEffect(() => {
