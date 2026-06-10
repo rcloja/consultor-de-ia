@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import { Bot, Send, X, Sparkles, CheckCircle2, AlertCircle, FileText, RefreshCw, Save } from "lucide-react";
+import { Bot, Send, X, Sparkles, CheckCircle2, AlertCircle, FileText, RefreshCw, Save, Globe, Upload, Loader2, SkipForward } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { chamarImplantadorAi, type ImplantadorChatHistoryItem } from "@/lib/implantadorAi";
+import { chamarPrefill, extractTextFromFile, type PrefillDoc } from "@/lib/prefill";
 
 const AGENT_ID = "arquiteto-conhecimento-ia";
 
@@ -241,6 +242,16 @@ export const DiagnosticoChat = ({ open, onClose, promptId }: Props) => {
   const [carregandoBase, setCarregandoBase] = useState(false);
   const [enviandoUpdate, setEnviandoUpdate] = useState(false);
   const [forcarCriacao, setForcarCriacao] = useState(false);
+
+  // Pré-preenchimento (site + arquivos) — só no modo criação
+  type PrefillStage = "form" | "processing" | "review" | "done";
+  const [prefillStage, setPrefillStage] = useState<PrefillStage>("form");
+  const [prefillUrl, setPrefillUrl] = useState("");
+  const [prefillFiles, setPrefillFiles] = useState<File[]>([]);
+  const [prefillSummary, setPrefillSummary] = useState("");
+  const [prefillSources, setPrefillSources] = useState<string[]>([]);
+  const [prefillError, setPrefillError] = useState<string | null>(null);
+
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const conversationIdRef = useRef<string>(gerarConversationId());
@@ -313,6 +324,14 @@ export const DiagnosticoChat = ({ open, onClose, promptId }: Props) => {
     (CAMPOS_BASE.filter((c) => (base[c]?.length ?? 0) > 0).length / CAMPOS_BASE.length) * 100,
   );
 
+  const proximaPerguntaPendente = (fromIdx: number, currentBase: Record<string, string[]>): number => {
+    for (let i = fromIdx; i < TOTAL; i++) {
+      const campo = PERGUNTAS[i].campo;
+      if (!(currentBase[campo]?.length)) return i;
+    }
+    return TOTAL;
+  };
+
   const fazerPergunta = (idx: number) => {
     const p = PERGUNTAS[idx];
     if (!p) return;
@@ -328,6 +347,113 @@ export const DiagnosticoChat = ({ open, onClose, promptId }: Props) => {
     }, 900);
   };
 
+  const iniciarPerguntasAposPrefill = (baseAtual: Record<string, string[]>) => {
+    const proxIdx = proximaPerguntaPendente(0, baseAtual);
+    setStep(proxIdx);
+    if (proxIdx >= TOTAL) {
+      setMessages((m) => [
+        ...m,
+        {
+          role: "agent",
+          text:
+            "Excelente! Com o material que você enviou já consegui cobrir todas as seções principais. Revise abaixo a Base de Conhecimento e me diga se deseja ajustar algo.",
+        },
+      ]);
+      setFinalizado(true);
+      setShowBase(true);
+      return;
+    }
+    setMessages((m) => [
+      ...m,
+      {
+        role: "agent",
+        text:
+          "Agora vou perguntar apenas o que ficou faltando para completar a Base. Pode responder com calma.",
+      },
+    ]);
+    setTimeout(() => fazerPergunta(proxIdx), 700);
+  };
+
+  const togglePrefillFile = (files: FileList | null) => {
+    if (!files) return;
+    const arr = Array.from(files);
+    const allowed = arr.filter((f) => {
+      const n = f.name.toLowerCase();
+      return (
+        n.endsWith(".pdf") ||
+        n.endsWith(".docx") ||
+        n.endsWith(".md") ||
+        n.endsWith(".txt")
+      );
+    });
+    setPrefillFiles((prev) => {
+      const map = new Map(prev.map((f) => [f.name, f]));
+      for (const f of allowed) map.set(f.name, f);
+      return Array.from(map.values()).slice(0, 8);
+    });
+  };
+
+  const removerPrefillFile = (name: string) => {
+    setPrefillFiles((prev) => prev.filter((f) => f.name !== name));
+  };
+
+  const submeterPrefill = async () => {
+    setPrefillError(null);
+    const url = prefillUrl.trim();
+    if (!url && prefillFiles.length === 0) {
+      setPrefillError("Informe um site ou anexe ao menos um arquivo.");
+      return;
+    }
+    setPrefillStage("processing");
+    try {
+      // Extrai texto dos arquivos no navegador
+      const documents: PrefillDoc[] = [];
+      for (const f of prefillFiles) {
+        try {
+          const text = await extractTextFromFile(f);
+          if (text.trim()) documents.push({ name: f.name, text });
+        } catch (e) {
+          console.error("Falha ao extrair", f.name, e);
+        }
+      }
+      const result = await chamarPrefill({
+        url: url || undefined,
+        documents: documents.length > 0 ? documents : undefined,
+      });
+      setBase(result.base);
+      setPrefillSummary(result.summary);
+      setPrefillSources(result.sources);
+      setPrefillStage("review");
+      setMessages((m) => [
+        ...m,
+        {
+          role: "system",
+          tone: "save",
+          text: `Material processado: ${result.sources.length} fonte(s).`,
+        },
+        {
+          role: "agent",
+          text:
+            "Li o material que você enviou e organizei as informações relevantes abaixo. Confira o que foi lido. Se algo estiver errado ou faltando, descreva no chat o ajuste; quando estiver tudo certo, clique em 'Prosseguir para as lacunas'.",
+        },
+      ]);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Falha ao processar material.";
+      setPrefillError(msg);
+      setPrefillStage("form");
+    }
+  };
+
+  const pularPrefill = () => {
+    setPrefillStage("done");
+    setTimeout(() => fazerPergunta(0), 400);
+  };
+
+  const confirmarPrefill = () => {
+    setPrefillStage("done");
+    iniciarPerguntasAposPrefill(base);
+  };
+
   const iniciarModoCriacao = (resetMensagens = true) => {
     setCarregandoBase(false);
     setForcarCriacao(true);
@@ -337,6 +463,12 @@ export const DiagnosticoChat = ({ open, onClose, promptId }: Props) => {
     setShowBase(false);
     setNotasAjuste([]);
     setFinalizado(false);
+    setPrefillStage("form");
+    setPrefillUrl("");
+    setPrefillFiles([]);
+    setPrefillSummary("");
+    setPrefillSources([]);
+    setPrefillError(null);
     if (resetMensagens) setMessages([]);
     setTyping(true);
     setTimeout(() => {
@@ -348,9 +480,13 @@ export const DiagnosticoChat = ({ open, onClose, promptId }: Props) => {
           text: "Modo criação ativado. Vamos construir uma nova Base de Conhecimento do zero.",
         },
         { role: "agent", text: OPENING },
+        {
+          role: "agent",
+          text:
+            "Antes de começar as perguntas, você pode acelerar o processo: informe o site da empresa e/ou envie materiais (PDF, DOCX, MD, TXT) como manual, apresentação ou catálogo. Vou ler tudo e pré-preencher o que conseguir, depois perguntamos apenas o que faltar.",
+        },
       ]);
       setTyping(false);
-      setTimeout(() => fazerPergunta(0), 600);
     }, 400);
   };
 
@@ -472,18 +608,31 @@ export const DiagnosticoChat = ({ open, onClose, promptId }: Props) => {
     setShowBase(false);
     setNotasAjuste([]);
     setForcarCriacao(false);
+    setPrefillStage("form");
+    setPrefillUrl("");
+    setPrefillFiles([]);
+    setPrefillSummary("");
+    setPrefillSources([]);
+    setPrefillError(null);
 
     if (idValido && promptId) {
       iniciarModoAtualizacao(true);
       return;
     }
 
-    // MODO CRIAÇÃO (padrão)
+    // MODO CRIAÇÃO (padrão) — abre com saudação e painel de prefill.
+    // As perguntas só começam quando o usuário envia/pula o prefill.
     setTyping(true);
     const t = setTimeout(() => {
-      setMessages([{ role: "agent", text: OPENING }]);
+      setMessages([
+        { role: "agent", text: OPENING },
+        {
+          role: "agent",
+          text:
+            "Antes de começar as perguntas, você pode acelerar o processo: informe o site da empresa e/ou envie materiais (PDF, DOCX, MD, TXT) como manual, apresentação ou catálogo. Vou ler tudo e pré-preencher o que conseguir, depois perguntamos apenas o que faltar.",
+        },
+      ]);
       setTyping(false);
-      setTimeout(() => fazerPergunta(0), 600);
     }, 400);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -541,6 +690,35 @@ export const DiagnosticoChat = ({ open, onClose, promptId }: Props) => {
     if (modoAtualizacao) return handleSendUpdate();
     const text = input.trim();
     if (!text || finalizado) return;
+
+    // Se estamos na revisão do pré-preenchimento, tratamos a mensagem como
+    // um ajuste/comentário antes de prosseguir para as lacunas.
+    if (prefillStage === "review") {
+      setMessages((m) => [...m, { role: "user", text }]);
+      setInput("");
+      setNotasAjuste((n) => [...n, text]);
+      const lower = text.toLowerCase();
+      const secao = CAMPOS_BASE.find((c) => lower.includes(c.toLowerCase()));
+      if (secao) {
+        setBase((b) => ({ ...b, [secao]: [...(b[secao] ?? []), text] }));
+      }
+      setTimeout(() => {
+        setMessages((m) => [
+          ...m,
+          {
+            role: "system",
+            tone: "save",
+            text: secao ? `Ajuste registrado em: ${secao}.` : "Ajuste registrado para esta sessão.",
+          },
+        ]);
+      }, 300);
+      void pedirComentarioIA(text, {
+        tipo: "ajuste_em_prefill",
+        secao_detectada: secao ?? null,
+      });
+      return;
+    }
+
     const pAtual = PERGUNTAS[step];
     if (!pAtual) return;
 
@@ -579,7 +757,12 @@ export const DiagnosticoChat = ({ open, onClose, promptId }: Props) => {
         }, 500);
       }
 
-      const proxIdx = step + 1;
+      // Próxima pergunta — pula campos já preenchidos pelo prefill.
+      const baseAposResposta = {
+        ...base,
+        [pAtual.campo]: [...(base[pAtual.campo] ?? []), text],
+      };
+      const proxIdx = proximaPerguntaPendente(step + 1, baseAposResposta);
       setStep(proxIdx);
 
       if (proxIdx >= TOTAL) {
@@ -724,6 +907,29 @@ export const DiagnosticoChat = ({ open, onClose, promptId }: Props) => {
               </div>
             )}
 
+            {!modoAtualizacao && (prefillStage === "form" || prefillStage === "processing") && (
+              <PrefillPanel
+                url={prefillUrl}
+                onUrlChange={setPrefillUrl}
+                files={prefillFiles}
+                onFiles={togglePrefillFile}
+                onRemoveFile={removerPrefillFile}
+                onSubmit={submeterPrefill}
+                onSkip={pularPrefill}
+                processing={prefillStage === "processing"}
+                error={prefillError}
+              />
+            )}
+
+            {!modoAtualizacao && prefillStage === "review" && (
+              <PrefillReview
+                summary={prefillSummary}
+                sources={prefillSources}
+                base={base}
+                onConfirm={confirmarPrefill}
+              />
+            )}
+
             {showBase && <BasePreview base={base} lacunas={lacunas} />}
           </div>
 
@@ -741,12 +947,16 @@ export const DiagnosticoChat = ({ open, onClose, promptId }: Props) => {
                       : "Diagnóstico concluído"
                     : modoAtualizacao
                       ? "Descreva o que deseja atualizar..."
-                      : "Escreva sua resposta..."
+                      : prefillStage === "review"
+                        ? "Descreva ajustes antes de prosseguir (opcional)..."
+                        : prefillStage === "form" || prefillStage === "processing"
+                          ? "Envie o material acima ou pule para começar..."
+                          : "Escreva sua resposta..."
                 }
-                disabled={finalizado || carregandoBase}
+                disabled={finalizado || carregandoBase || prefillStage === "processing" || prefillStage === "form"}
                 className="flex-1 px-4 py-3 bg-secondary rounded-2xl text-sm outline-none focus:ring-2 focus:ring-primary/30 transition disabled:opacity-60"
               />
-              <Button onClick={handleSend} disabled={finalizado || carregandoBase} size="icon" className="rounded-2xl h-12 w-12 shrink-0">
+              <Button onClick={handleSend} disabled={finalizado || carregandoBase || prefillStage === "processing" || prefillStage === "form"} size="icon" className="rounded-2xl h-12 w-12 shrink-0">
                 <Send className="w-4 h-4" />
               </Button>
             </div>
@@ -931,3 +1141,206 @@ const BasePreview = ({ base, lacunas }: { base: Record<string, string[]>; lacuna
     </div>
   </div>
 );
+
+interface PrefillPanelProps {
+  url: string;
+  onUrlChange: (v: string) => void;
+  files: File[];
+  onFiles: (files: FileList | null) => void;
+  onRemoveFile: (name: string) => void;
+  onSubmit: () => void;
+  onSkip: () => void;
+  processing: boolean;
+  error: string | null;
+}
+
+const PrefillPanel = ({
+  url,
+  onUrlChange,
+  files,
+  onFiles,
+  onRemoveFile,
+  onSubmit,
+  onSkip,
+  processing,
+  error,
+}: PrefillPanelProps) => {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  return (
+    <div className="bg-card border border-primary/20 rounded-2xl p-4 shadow-card animate-fade-up">
+      <div className="flex items-center gap-2 mb-3">
+        <div className="w-8 h-8 rounded-xl gradient-hero flex items-center justify-center">
+          <Sparkles className="w-4 h-4 text-white" />
+        </div>
+        <div>
+          <div className="font-display font-semibold text-sm">Acelerar com material existente</div>
+          <div className="text-xs text-muted-foreground">Site e/ou arquivos (PDF, DOCX, MD, TXT)</div>
+        </div>
+      </div>
+
+      <label className="text-xs font-medium text-foreground mb-1.5 flex items-center gap-1.5">
+        <Globe className="w-3.5 h-3.5" /> Site da empresa (opcional)
+      </label>
+      <input
+        type="url"
+        value={url}
+        onChange={(e) => onUrlChange(e.target.value)}
+        placeholder="https://suaempresa.com.br"
+        disabled={processing}
+        className="w-full px-3 py-2 bg-secondary rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary/30 transition disabled:opacity-60 mb-3"
+      />
+
+      <div className="text-xs font-medium text-foreground mb-1.5 flex items-center gap-1.5">
+        <Upload className="w-3.5 h-3.5" /> Anexar arquivos (opcional)
+      </div>
+      <input
+        ref={fileInputRef}
+        type="file"
+        multiple
+        accept=".pdf,.docx,.md,.txt,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/markdown,text/plain"
+        onChange={(e) => onFiles(e.target.files)}
+        disabled={processing}
+        className="hidden"
+      />
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        disabled={processing}
+        onClick={() => fileInputRef.current?.click()}
+        className="rounded-xl h-9 text-xs w-full"
+      >
+        <Upload className="w-3.5 h-3.5 mr-1.5" /> Selecionar arquivos
+      </Button>
+
+      {files.length > 0 && (
+        <ul className="mt-2 space-y-1">
+          {files.map((f) => (
+            <li
+              key={f.name}
+              className="flex items-center justify-between text-xs bg-secondary/60 rounded-lg px-2.5 py-1.5"
+            >
+              <span className="truncate flex items-center gap-1.5">
+                <FileText className="w-3 h-3 text-muted-foreground shrink-0" />
+                {f.name}
+              </span>
+              <button
+                type="button"
+                onClick={() => onRemoveFile(f.name)}
+                disabled={processing}
+                className="text-muted-foreground hover:text-destructive transition"
+                aria-label={`Remover ${f.name}`}
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {error && (
+        <div className="mt-3 text-xs text-destructive bg-destructive/5 border border-destructive/20 rounded-lg p-2.5 flex items-start gap-1.5">
+          <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+          <span>{error}</span>
+        </div>
+      )}
+
+      <div className="flex gap-2 mt-4">
+        <Button onClick={onSubmit} disabled={processing} className="flex-1 rounded-xl h-10 text-xs">
+          {processing ? (
+            <>
+              <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> Lendo material...
+            </>
+          ) : (
+            <>
+              <Sparkles className="w-3.5 h-3.5 mr-1.5" /> Pré-preencher
+            </>
+          )}
+        </Button>
+        <Button
+          onClick={onSkip}
+          disabled={processing}
+          variant="outline"
+          className="rounded-xl h-10 text-xs"
+        >
+          <SkipForward className="w-3.5 h-3.5 mr-1.5" /> Pular
+        </Button>
+      </div>
+    </div>
+  );
+};
+
+interface PrefillReviewProps {
+  summary: string;
+  sources: string[];
+  base: Record<string, string[]>;
+  onConfirm: () => void;
+}
+
+const PrefillReview = ({ summary, sources, base, onConfirm }: PrefillReviewProps) => {
+  const preenchidos = SECOES_FINAIS.filter((s) => (base[s]?.length ?? 0) > 0);
+  return (
+    <div className="bg-card border border-accent/30 rounded-2xl p-4 shadow-card animate-fade-up space-y-3">
+      <div className="flex items-center gap-2">
+        <div className="w-8 h-8 rounded-xl bg-accent/15 flex items-center justify-center">
+          <CheckCircle2 className="w-4 h-4 text-accent" />
+        </div>
+        <div>
+          <div className="font-display font-semibold text-sm">O que foi lido e considerado relevante</div>
+          <div className="text-xs text-muted-foreground">
+            {sources.length} fonte(s) · {preenchidos.length} seção(ões) pré-preenchida(s)
+          </div>
+        </div>
+      </div>
+
+      {sources.length > 0 && (
+        <div>
+          <div className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold mb-1">Fontes</div>
+          <ul className="space-y-0.5">
+            {sources.map((s) => (
+              <li key={s} className="text-xs text-muted-foreground truncate">• {s}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {summary && (
+        <div>
+          <div className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold mb-1">
+            Resumo do material
+          </div>
+          <pre className="text-xs text-foreground whitespace-pre-wrap font-sans leading-relaxed bg-secondary/40 rounded-lg p-2.5">
+            {summary}
+          </pre>
+        </div>
+      )}
+
+      {preenchidos.length > 0 && (
+        <div>
+          <div className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold mb-1">
+            Seções pré-preenchidas
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {preenchidos.map((s) => (
+              <span
+                key={s}
+                className="text-[11px] px-2 py-0.5 rounded-md bg-accent/10 text-accent border border-accent/20"
+              >
+                {s}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="pt-1 flex flex-col sm:flex-row gap-2">
+        <Button onClick={onConfirm} className="flex-1 rounded-xl h-10 text-xs">
+          <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" /> Está certo, prosseguir para as lacunas
+        </Button>
+      </div>
+      <p className="text-[11px] text-muted-foreground">
+        Quer ajustar algo antes? Descreva no campo de mensagem abaixo (ex.: "remover serviço X", "público-alvo correto é Y"). Suas notas serão registradas.
+      </p>
+    </div>
+  );
+};
