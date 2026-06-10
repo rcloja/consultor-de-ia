@@ -608,18 +608,31 @@ export const DiagnosticoChat = ({ open, onClose, promptId }: Props) => {
     setShowBase(false);
     setNotasAjuste([]);
     setForcarCriacao(false);
+    setPrefillStage("form");
+    setPrefillUrl("");
+    setPrefillFiles([]);
+    setPrefillSummary("");
+    setPrefillSources([]);
+    setPrefillError(null);
 
     if (idValido && promptId) {
       iniciarModoAtualizacao(true);
       return;
     }
 
-    // MODO CRIAÇÃO (padrão)
+    // MODO CRIAÇÃO (padrão) — abre com saudação e painel de prefill.
+    // As perguntas só começam quando o usuário envia/pula o prefill.
     setTyping(true);
     const t = setTimeout(() => {
-      setMessages([{ role: "agent", text: OPENING }]);
+      setMessages([
+        { role: "agent", text: OPENING },
+        {
+          role: "agent",
+          text:
+            "Antes de começar as perguntas, você pode acelerar o processo: informe o site da empresa e/ou envie materiais (PDF, DOCX, MD, TXT) como manual, apresentação ou catálogo. Vou ler tudo e pré-preencher o que conseguir, depois perguntamos apenas o que faltar.",
+        },
+      ]);
       setTyping(false);
-      setTimeout(() => fazerPergunta(0), 600);
     }, 400);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
