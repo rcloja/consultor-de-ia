@@ -639,6 +639,7 @@ export const DiagnosticoChat = ({ open, onClose, promptId }: Props) => {
     if (salvandoParcial) return;
     const snap = snapshotAtual();
     salvarEstado(snap);
+    setUltimoSalvamento(new Date());
     setSalvandoParcial(true);
     try {
       await enviarParcialCriacao(conversationIdRef.current, snap);
