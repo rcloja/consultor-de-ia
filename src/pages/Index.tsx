@@ -162,21 +162,44 @@ const Index = () => {
                 <div className="flex flex-col sm:flex-row gap-2">
                   <Input
                     value={idInput}
-                    onChange={(e) => setIdInput(e.target.value)}
+                    onChange={(e) => {
+                      setIdInput(e.target.value);
+                      if (idErro) setIdErro(null);
+                    }}
                     onKeyDown={(e) => e.key === "Enter" && openChatUpdate()}
                     placeholder="Cole aqui o ID da sua base (ex.: abc123...)"
-                    className="flex-1 rounded-xl h-11"
+                    className={`flex-1 rounded-xl h-11 ${
+                      idTrim && !idValido ? "border-destructive focus-visible:ring-destructive/30" : ""
+                    }`}
                     aria-label="ID da Base de Conhecimento existente"
+                    aria-invalid={idTrim ? !idValido : undefined}
+                    aria-describedby="prompt-id-feedback"
+                    maxLength={64}
+                    autoComplete="off"
+                    spellCheck={false}
                   />
                   <Button
                     onClick={openChatUpdate}
-                    disabled={!idInput.trim()}
+                    disabled={!idValido}
                     variant="outline"
                     className="rounded-xl h-11"
                   >
                     Continuar atualização
                   </Button>
                 </div>
+                <p
+                  id="prompt-id-feedback"
+                  className={`text-[11px] mt-2 min-h-[1rem] ${
+                    idErro || (idTrim && !idValido) ? "text-destructive" : "text-muted-foreground"
+                  }`}
+                >
+                  {idErro
+                    ? idErro
+                    : idTrim && !idValido
+                      ? idValidacao.erro
+                      : "Formato esperado: 6 a 64 caracteres (letras, números, - ou _)."}
+                </p>
+
               </div>
             </div>
 
