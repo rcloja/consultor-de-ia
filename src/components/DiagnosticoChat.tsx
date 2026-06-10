@@ -2,6 +2,16 @@ import { useEffect, useRef, useState } from "react";
 import { Bot, Send, X, Sparkles, CheckCircle2, AlertCircle, FileText, RefreshCw, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
+import { chamarImplantadorAi, type ImplantadorChatHistoryItem } from "@/lib/implantadorAi";
+
+const AGENT_ID = "arquiteto-conhecimento-ia";
+
+function gerarConversationId() {
+  try {
+    if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID();
+  } catch { /* noop */ }
+  return `conv-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
 
 type MessageAction = { label: string; kind: "retry" | "create" };
 
@@ -233,6 +243,62 @@ export const DiagnosticoChat = ({ open, onClose, promptId }: Props) => {
   const [forcarCriacao, setForcarCriacao] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const conversationIdRef = useRef<string>(gerarConversationId());
+  const historyRef = useRef<ImplantadorChatHistoryItem[]>([]);
+
+  // Reinicia a conversa a cada abertura do chat
+  useEffect(() => {
+    if (open) {
+      conversationIdRef.current = gerarConversationId();
+      historyRef.current = [];
+    }
+  }, [open]);
+
+  const pedirComentarioIA = async (
+    userMessage: string,
+    extraContext: Record<string, unknown> = {},
+  ) => {
+    // Mantém histórico curto (últimos turnos) para reduzir tokens
+    historyRef.current = [
+      ...historyRef.current.slice(-8),
+      { role: "user", content: userMessage },
+    ];
+    try {
+      const { response } = await chamarImplantadorAi({
+        agent_id: AGENT_ID,
+        conversation_id: conversationIdRef.current,
+        message: userMessage,
+        history: historyRef.current.slice(0, -1),
+        context: {
+          modo: modoAtualizacao ? "atualizacao" : "criacao",
+          prompt_id: promptId ?? null,
+          etapa_atual: etapaAtual,
+          progresso_percentual: progresso,
+          base_atual: base,
+          lacunas_atuais: lacunas,
+          ...extraContext,
+        },
+      });
+      if (response) {
+        historyRef.current = [
+          ...historyRef.current,
+          { role: "assistant", content: response },
+        ];
+        setMessages((m) => [...m, { role: "agent", text: response }]);
+      }
+    } catch (e) {
+      console.error("Falha ao consultar IA:", e);
+      setMessages((m) => [
+        ...m,
+        {
+          role: "system",
+          tone: "error",
+          title: "Consultor de IA indisponível",
+          text: "Não consegui me conectar ao serviço de IA agora. Sua resposta foi salva normalmente e podemos continuar.",
+        },
+      ]);
+    }
+  };
 
   const modoAtualizacao = idValido && !forcarCriacao;
 
@@ -449,6 +515,10 @@ export const DiagnosticoChat = ({ open, onClose, promptId }: Props) => {
         },
       ]);
     }, 350);
+    void pedirComentarioIA(text, {
+      tipo: "ajuste_em_atualizacao",
+      secao_detectada: secao ?? null,
+    });
   };
 
   const handleConcluirUpdate = async () => {
@@ -488,6 +558,13 @@ export const DiagnosticoChat = ({ open, onClose, promptId }: Props) => {
         ...m,
         { role: "system", tone: "save", text: `Resposta salva em: ${pAtual.campo}.` },
       ]);
+
+      void pedirComentarioIA(text, {
+        pergunta_atual: pAtual.texto,
+        campo: pAtual.campo,
+        tem_lacuna: !!temLacuna,
+      });
+
 
       if (temLacuna) {
         setTimeout(() => {

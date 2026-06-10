@@ -14,7 +14,45 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      implantador_logs: {
+        Row: {
+          agent_id: string | null
+          conversation_id: string | null
+          created_at: string
+          error_message: string | null
+          id: string
+          input_tokens: number
+          model: string
+          output_tokens: number
+          status: string
+          total_tokens: number
+        }
+        Insert: {
+          agent_id?: string | null
+          conversation_id?: string | null
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          input_tokens?: number
+          model: string
+          output_tokens?: number
+          status?: string
+          total_tokens?: number
+        }
+        Update: {
+          agent_id?: string | null
+          conversation_id?: string | null
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          input_tokens?: number
+          model?: string
+          output_tokens?: number
+          status?: string
+          total_tokens?: number
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
