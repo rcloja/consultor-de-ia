@@ -243,6 +243,62 @@ export const DiagnosticoChat = ({ open, onClose, promptId }: Props) => {
   const [forcarCriacao, setForcarCriacao] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const conversationIdRef = useRef<string>(gerarConversationId());
+  const historyRef = useRef<ImplantadorChatHistoryItem[]>([]);
+
+  // Reinicia a conversa a cada abertura do chat
+  useEffect(() => {
+    if (open) {
+      conversationIdRef.current = gerarConversationId();
+      historyRef.current = [];
+    }
+  }, [open]);
+
+  const pedirComentarioIA = async (
+    userMessage: string,
+    extraContext: Record<string, unknown> = {},
+  ) => {
+    // Mantém histórico curto (últimos turnos) para reduzir tokens
+    historyRef.current = [
+      ...historyRef.current.slice(-8),
+      { role: "user", content: userMessage },
+    ];
+    try {
+      const { response } = await chamarImplantadorAi({
+        agent_id: AGENT_ID,
+        conversation_id: conversationIdRef.current,
+        message: userMessage,
+        history: historyRef.current.slice(0, -1),
+        context: {
+          modo: modoAtualizacao ? "atualizacao" : "criacao",
+          prompt_id: promptId ?? null,
+          etapa_atual: etapaAtual,
+          progresso_percentual: progresso,
+          base_atual: base,
+          lacunas_atuais: lacunas,
+          ...extraContext,
+        },
+      });
+      if (response) {
+        historyRef.current = [
+          ...historyRef.current,
+          { role: "assistant", content: response },
+        ];
+        setMessages((m) => [...m, { role: "agent", text: response }]);
+      }
+    } catch (e) {
+      console.error("Falha ao consultar IA:", e);
+      setMessages((m) => [
+        ...m,
+        {
+          role: "system",
+          tone: "error",
+          title: "Consultor de IA indisponível",
+          text: "Não consegui me conectar ao serviço de IA agora. Sua resposta foi salva normalmente e podemos continuar.",
+        },
+      ]);
+    }
+  };
 
   const modoAtualizacao = idValido && !forcarCriacao;
 
