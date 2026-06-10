@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DiagnosticoChat } from "@/components/DiagnosticoChat";
+import logoAsset from "@/assets/atendenteai-logo.png.asset.json";
 
 const Index = () => {
   const [chatOpen, setChatOpen] = useState(false);
