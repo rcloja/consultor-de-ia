@@ -34,9 +34,7 @@ const Index = () => {
       <header className="sticky top-0 z-40 backdrop-blur-xl bg-background/70 border-b border-border/60">
         <div className="container flex items-center justify-between h-16">
           <a href="#inicio" className="flex items-center gap-2">
-            <div className="w-9 h-9 rounded-xl gradient-hero flex items-center justify-center shadow-glow">
-              <Bot className="w-5 h-5 text-white" />
-            </div>
+            <img src={logoAsset.url} alt="AtendenteAI" className="w-9 h-9 object-contain" />
             <span className="font-display font-bold text-lg">AtendenteAI</span>
           </a>
           <nav className="hidden md:flex items-center gap-8 text-sm font-medium text-muted-foreground">
