@@ -557,6 +557,82 @@ export const DiagnosticoChat = ({ open, onClose, promptId }: Props) => {
   const [salvandoParcial, setSalvandoParcial] = useState(false);
   const importInputRef = useRef<HTMLInputElement>(null);
 
+  // Snapshot sempre atualizado para os listeners de unload/visibility.
+  const snapshotRef = useRef<PersistedState | null>(null);
+  useEffect(() => {
+    snapshotRef.current = snapshotAtual();
+  });
+
+  // Auto-save ao fechar a aba, recarregar ou trocar de aba/app.
+  useEffect(() => {
+    if (!open) return;
+    if (idValido && !forcarCriacao) return; // só no modo criação
+
+    const temConteudo = () => {
+      const s = snapshotRef.current;
+      return !!s && (s.messages.length > 0 || Object.keys(s.base).length > 0);
+    };
+
+    const enviarBeacon = () => {
+      const s = snapshotRef.current;
+      if (!s || !temConteudo()) return;
+      try {
+        salvarEstado(s);
+      } catch { /* noop */ }
+      try {
+        const payload = JSON.stringify({
+          origem: "pagina_implantacao_atendenteai",
+          agente: "Arquiteto de Conhecimento IA",
+          modo: "criacao_autosave",
+          conversation_id: s.conversationId,
+          base: s.base,
+          lacunas: s.lacunas,
+          notas_de_ajuste: s.notasAjuste,
+          etapa_atual_idx: s.step,
+          finalizado: s.finalizado,
+          prefill: {
+            url: s.prefillUrl,
+            sources: s.prefillSources,
+            summary: s.prefillSummary,
+          },
+          motivo: "unload",
+          timestamp: new Date(s.updatedAt).toISOString(),
+        });
+        if (navigator.sendBeacon) {
+          const blob = new Blob([payload], { type: "application/json" });
+          navigator.sendBeacon(ENDPOINT, blob);
+        } else {
+          fetch(ENDPOINT, {
+            method: "POST",
+            mode: "no-cors",
+            keepalive: true,
+            headers: { "Content-Type": "application/json" },
+            body: payload,
+          }).catch(() => { /* noop */ });
+        }
+      } catch (e) {
+        console.error("Falha no auto-save:", e);
+      }
+    };
+
+    const onBeforeUnload = () => enviarBeacon();
+    const onPageHide = () => enviarBeacon();
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") enviarBeacon();
+    };
+
+    window.addEventListener("beforeunload", onBeforeUnload);
+    window.addEventListener("pagehide", onPageHide);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      window.removeEventListener("beforeunload", onBeforeUnload);
+      window.removeEventListener("pagehide", onPageHide);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [open, idValido, forcarCriacao]);
+
+
+
   const handleSalvarProgresso = async () => {
     if (salvandoParcial) return;
     const snap = snapshotAtual();
