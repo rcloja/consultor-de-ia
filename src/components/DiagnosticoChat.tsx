@@ -535,6 +535,90 @@ export const DiagnosticoChat = ({ open, onClose, promptId }: Props) => {
     iniciarModoCriacao(true);
   };
 
+  const snapshotAtual = (): PersistedState => ({
+    conversationId: conversationIdRef.current,
+    messages,
+    base,
+    lacunas,
+    step,
+    finalizado,
+    notasAjuste,
+    forcarCriacao,
+    prefillStage,
+    prefillUrl,
+    prefillSummary,
+    prefillSources,
+    showBase,
+    history: historyRef.current,
+    enviadoFinal: enviadoFinalRef.current,
+    updatedAt: Date.now(),
+  });
+
+  const [salvandoParcial, setSalvandoParcial] = useState(false);
+  const importInputRef = useRef<HTMLInputElement>(null);
+
+  const handleSalvarProgresso = async () => {
+    if (salvandoParcial) return;
+    const snap = snapshotAtual();
+    salvarEstado(snap);
+    setSalvandoParcial(true);
+    try {
+      await enviarParcialCriacao(conversationIdRef.current, snap);
+      exportarProgressoTxt(snap);
+      setMessages((m) => [
+        ...m,
+        {
+          role: "system",
+          tone: "save",
+          text:
+            "Progresso enviado ao servidor e arquivo .txt baixado. Você pode fechar a página e voltar depois — neste navegador o progresso volta sozinho; em outro dispositivo, importe o arquivo .txt salvo.",
+        },
+      ]);
+    } finally {
+      setSalvandoParcial(false);
+    }
+  };
+
+  const handleImportarProgresso = async (file: File) => {
+    const parsed = await importarProgressoTxt(file);
+    if (!parsed) {
+      setMessages((m) => [
+        ...m,
+        {
+          role: "system",
+          tone: "error",
+          title: "Arquivo inválido",
+          text: "Não consegui ler o arquivo de progresso. Verifique se é o .txt original gerado pelo botão 'Salvar progresso'.",
+        },
+      ]);
+      return;
+    }
+    conversationIdRef.current = parsed.conversationId || conversationIdRef.current;
+    historyRef.current = Array.isArray(parsed.history) ? parsed.history : [];
+    enviadoFinalRef.current = !!parsed.enviadoFinal;
+    setMessages(parsed.messages);
+    setBase(parsed.base ?? {});
+    setLacunas(parsed.lacunas ?? []);
+    setStep(parsed.step ?? 0);
+    setFinalizado(!!parsed.finalizado);
+    setShowBase(!!parsed.showBase);
+    setNotasAjuste(parsed.notasAjuste ?? []);
+    setForcarCriacao(!!parsed.forcarCriacao);
+    setPrefillStage(parsed.prefillStage ?? "done");
+    setPrefillUrl(parsed.prefillUrl ?? "");
+    setPrefillSummary(parsed.prefillSummary ?? "");
+    setPrefillSources(parsed.prefillSources ?? []);
+    setMessages((m) => [
+      ...m,
+      {
+        role: "system",
+        tone: "save",
+        text: `Progresso restaurado a partir do arquivo (salvo em ${new Date(parsed.updatedAt).toLocaleString("pt-BR")}).`,
+      },
+    ]);
+  };
+
+
   const iniciarPerguntasAposPrefill = (baseAtual: Record<string, string[]>) => {
     const proxIdx = proximaPerguntaPendente(0, baseAtual);
     setStep(proxIdx);
