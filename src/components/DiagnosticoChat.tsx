@@ -675,6 +675,59 @@ export const DiagnosticoChat = ({ open, onClose, promptId }: Props) => {
 
   useEffect(() => {
     if (!open) return;
+
+    // MODO ATUALIZAÇÃO: carrega do servidor (não usa cache local).
+    if (idValido && promptId) {
+      setMessages([]);
+      setStep(0);
+      setBase({});
+      setLacunas([]);
+      setFinalizado(false);
+      setShowBase(false);
+      setNotasAjuste([]);
+      setForcarCriacao(false);
+      setPrefillStage("form");
+      setPrefillUrl("");
+      setPrefillFiles([]);
+      setPrefillSummary("");
+      setPrefillSources([]);
+      setPrefillError(null);
+      iniciarModoAtualizacao(true);
+      return;
+    }
+
+    // MODO CRIAÇÃO: tenta restaurar progresso salvo no navegador.
+    const salvo = carregarEstadoSalvo();
+    if (salvo && (salvo.messages.length > 0 || Object.keys(salvo.base ?? {}).length > 0)) {
+      conversationIdRef.current = salvo.conversationId || conversationIdRef.current;
+      historyRef.current = Array.isArray(salvo.history) ? salvo.history : [];
+      enviadoFinalRef.current = !!salvo.enviadoFinal;
+      setMessages(salvo.messages);
+      setBase(salvo.base ?? {});
+      setLacunas(salvo.lacunas ?? []);
+      setStep(salvo.step ?? 0);
+      setFinalizado(!!salvo.finalizado);
+      setShowBase(!!salvo.showBase);
+      setNotasAjuste(salvo.notasAjuste ?? []);
+      setForcarCriacao(!!salvo.forcarCriacao);
+      setPrefillStage(salvo.prefillStage ?? "done");
+      setPrefillUrl(salvo.prefillUrl ?? "");
+      setPrefillSummary(salvo.prefillSummary ?? "");
+      setPrefillSources(salvo.prefillSources ?? []);
+      setPrefillFiles([]);
+      setPrefillError(null);
+      setMessages((m) => [
+        ...m,
+        {
+          role: "system",
+          tone: "info",
+          text: "Recuperei sua conversa de onde você parou. Continue de onde estava ou clique em 'Recomeçar' no topo.",
+        },
+      ]);
+      return;
+    }
+
+    // Sem progresso salvo — abre limpo.
     setMessages([]);
     setStep(0);
     setBase({});
@@ -689,14 +742,8 @@ export const DiagnosticoChat = ({ open, onClose, promptId }: Props) => {
     setPrefillSummary("");
     setPrefillSources([]);
     setPrefillError(null);
+    enviadoFinalRef.current = false;
 
-    if (idValido && promptId) {
-      iniciarModoAtualizacao(true);
-      return;
-    }
-
-    // MODO CRIAÇÃO (padrão) — abre com saudação e painel de prefill.
-    // As perguntas só começam quando o usuário envia/pula o prefill.
     setTyping(true);
     const t = setTimeout(() => {
       setMessages([
@@ -712,6 +759,47 @@ export const DiagnosticoChat = ({ open, onClose, promptId }: Props) => {
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, promptId]);
+
+  // Persiste estado da conversa (modo criação) a cada mudança relevante.
+  useEffect(() => {
+    if (!open) return;
+    if (idValido && !forcarCriacao) return; // modo atualização não persiste localmente
+    if (messages.length === 0 && Object.keys(base).length === 0) return;
+    salvarEstado({
+      conversationId: conversationIdRef.current,
+      messages,
+      base,
+      lacunas,
+      step,
+      finalizado,
+      notasAjuste,
+      forcarCriacao,
+      prefillStage,
+      prefillUrl,
+      prefillSummary,
+      prefillSources,
+      showBase,
+      history: historyRef.current,
+      enviadoFinal: enviadoFinalRef.current,
+      updatedAt: Date.now(),
+    });
+  }, [
+    open,
+    idValido,
+    forcarCriacao,
+    messages,
+    base,
+    lacunas,
+    step,
+    finalizado,
+    notasAjuste,
+    prefillStage,
+    prefillUrl,
+    prefillSummary,
+    prefillSources,
+    showBase,
+  ]);
+
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
