@@ -209,6 +209,81 @@ async function enviarBaseAtualizada(
   }
 }
 
+async function enviarBaseFinalCriacao(
+  conversationId: string,
+  base: Record<string, string[]>,
+  lacunas: string[],
+  notasAjuste: string[],
+  origemPrefill: { url?: string; sources: string[]; summary: string },
+) {
+  try {
+    await fetch(ENDPOINT, {
+      method: "POST",
+      mode: "no-cors",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        origem: "pagina_implantacao_atendenteai",
+        agente: "Arquiteto de Conhecimento IA",
+        modo: "criacao_finalizada",
+        conversation_id: conversationId,
+        base,
+        lacunas,
+        notas_de_ajuste: notasAjuste,
+        prefill: origemPrefill,
+        timestamp: new Date().toISOString(),
+      }),
+    });
+  } catch (e) {
+    console.error("Erro ao enviar base final (criação):", e);
+  }
+}
+
+// ---------- Persistência local (sobrevive a fechar a página) ----------
+const STORAGE_KEY = "diagnostico_chat_state_v1";
+
+interface PersistedState {
+  conversationId: string;
+  messages: Message[];
+  base: Record<string, string[]>;
+  lacunas: string[];
+  step: number;
+  finalizado: boolean;
+  notasAjuste: string[];
+  forcarCriacao: boolean;
+  prefillStage: "form" | "processing" | "review" | "done";
+  prefillUrl: string;
+  prefillSummary: string;
+  prefillSources: string[];
+  showBase: boolean;
+  history: ImplantadorChatHistoryItem[];
+  enviadoFinal?: boolean;
+  updatedAt: number;
+}
+
+function carregarEstadoSalvo(): PersistedState | null {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as PersistedState;
+    if (!parsed || !Array.isArray(parsed.messages)) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function salvarEstado(state: PersistedState) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  } catch {
+    /* quota / privacidade */
+  }
+}
+
+function limparEstadoSalvo() {
+  try { localStorage.removeItem(STORAGE_KEY); } catch { /* noop */ }
+}
+
 const CAMPOS_BASE = [
   "Empresa",
   "Produtos",
