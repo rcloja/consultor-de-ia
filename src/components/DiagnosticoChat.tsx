@@ -284,6 +284,81 @@ function limparEstadoSalvo() {
   try { localStorage.removeItem(STORAGE_KEY); } catch { /* noop */ }
 }
 
+const TXT_MARKER = "===ATENDENTEAI_PROGRESSO_V1===";
+
+function exportarProgressoTxt(state: PersistedState) {
+  const cabecalho = [
+    "AtendenteAI — Progresso do Arquiteto de Conhecimento IA",
+    `Salvo em: ${new Date(state.updatedAt).toLocaleString("pt-BR")}`,
+    `ID da conversa: ${state.conversationId}`,
+    "",
+    "IMPORTANTE: NÃO edite o conteúdo abaixo da linha marcadora.",
+    "Para retomar, abra o chat e clique em 'Importar progresso' e selecione este arquivo.",
+    "",
+    TXT_MARKER,
+  ].join("\n");
+  const blob = new Blob(
+    [cabecalho + "\n" + JSON.stringify(state)],
+    { type: "text/plain;charset=utf-8" },
+  );
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  const stamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+  a.download = `atendenteai-progresso-${stamp}.txt`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+async function importarProgressoTxt(file: File): Promise<PersistedState | null> {
+  const txt = await file.text();
+  const idx = txt.indexOf(TXT_MARKER);
+  if (idx === -1) return null;
+  const json = txt.slice(idx + TXT_MARKER.length).trim();
+  try {
+    const parsed = JSON.parse(json) as PersistedState;
+    if (!parsed || !Array.isArray(parsed.messages)) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+async function enviarParcialCriacao(
+  conversationId: string,
+  state: PersistedState,
+) {
+  try {
+    await fetch(ENDPOINT, {
+      method: "POST",
+      mode: "no-cors",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        origem: "pagina_implantacao_atendenteai",
+        agente: "Arquiteto de Conhecimento IA",
+        modo: "criacao_parcial",
+        conversation_id: conversationId,
+        base: state.base,
+        lacunas: state.lacunas,
+        notas_de_ajuste: state.notasAjuste,
+        etapa_atual_idx: state.step,
+        finalizado: state.finalizado,
+        prefill: {
+          url: state.prefillUrl,
+          sources: state.prefillSources,
+          summary: state.prefillSummary,
+        },
+        timestamp: new Date(state.updatedAt).toISOString(),
+      }),
+    });
+  } catch (e) {
+    console.error("Erro ao enviar progresso parcial:", e);
+  }
+}
+
+
 const CAMPOS_BASE = [
   "Empresa",
   "Produtos",
@@ -459,6 +534,90 @@ export const DiagnosticoChat = ({ open, onClose, promptId }: Props) => {
     historyRef.current = [];
     iniciarModoCriacao(true);
   };
+
+  const snapshotAtual = (): PersistedState => ({
+    conversationId: conversationIdRef.current,
+    messages,
+    base,
+    lacunas,
+    step,
+    finalizado,
+    notasAjuste,
+    forcarCriacao,
+    prefillStage,
+    prefillUrl,
+    prefillSummary,
+    prefillSources,
+    showBase,
+    history: historyRef.current,
+    enviadoFinal: enviadoFinalRef.current,
+    updatedAt: Date.now(),
+  });
+
+  const [salvandoParcial, setSalvandoParcial] = useState(false);
+  const importInputRef = useRef<HTMLInputElement>(null);
+
+  const handleSalvarProgresso = async () => {
+    if (salvandoParcial) return;
+    const snap = snapshotAtual();
+    salvarEstado(snap);
+    setSalvandoParcial(true);
+    try {
+      await enviarParcialCriacao(conversationIdRef.current, snap);
+      exportarProgressoTxt(snap);
+      setMessages((m) => [
+        ...m,
+        {
+          role: "system",
+          tone: "save",
+          text:
+            "Progresso enviado ao servidor e arquivo .txt baixado. Você pode fechar a página e voltar depois — neste navegador o progresso volta sozinho; em outro dispositivo, importe o arquivo .txt salvo.",
+        },
+      ]);
+    } finally {
+      setSalvandoParcial(false);
+    }
+  };
+
+  const handleImportarProgresso = async (file: File) => {
+    const parsed = await importarProgressoTxt(file);
+    if (!parsed) {
+      setMessages((m) => [
+        ...m,
+        {
+          role: "system",
+          tone: "error",
+          title: "Arquivo inválido",
+          text: "Não consegui ler o arquivo de progresso. Verifique se é o .txt original gerado pelo botão 'Salvar progresso'.",
+        },
+      ]);
+      return;
+    }
+    conversationIdRef.current = parsed.conversationId || conversationIdRef.current;
+    historyRef.current = Array.isArray(parsed.history) ? parsed.history : [];
+    enviadoFinalRef.current = !!parsed.enviadoFinal;
+    setMessages(parsed.messages);
+    setBase(parsed.base ?? {});
+    setLacunas(parsed.lacunas ?? []);
+    setStep(parsed.step ?? 0);
+    setFinalizado(!!parsed.finalizado);
+    setShowBase(!!parsed.showBase);
+    setNotasAjuste(parsed.notasAjuste ?? []);
+    setForcarCriacao(!!parsed.forcarCriacao);
+    setPrefillStage(parsed.prefillStage ?? "done");
+    setPrefillUrl(parsed.prefillUrl ?? "");
+    setPrefillSummary(parsed.prefillSummary ?? "");
+    setPrefillSources(parsed.prefillSources ?? []);
+    setMessages((m) => [
+      ...m,
+      {
+        role: "system",
+        tone: "save",
+        text: `Progresso restaurado a partir do arquivo (salvo em ${new Date(parsed.updatedAt).toLocaleString("pt-BR")}).`,
+      },
+    ]);
+  };
+
 
   const iniciarPerguntasAposPrefill = (baseAtual: Record<string, string[]>) => {
     const proxIdx = proximaPerguntaPendente(0, baseAtual);
@@ -1013,19 +1172,58 @@ export const DiagnosticoChat = ({ open, onClose, promptId }: Props) => {
               </div>
             </div>
             <div className="flex items-center gap-1">
-              {!modoAtualizacao && (messages.length > 0 || Object.keys(base).length > 0) && (
-                <button
-                  onClick={() => {
-                    if (confirm("Recomeçar a conversa? O progresso salvo neste navegador será apagado.")) {
-                      recomecarConversa();
-                    }
-                  }}
-                  className="p-2 rounded-xl hover:bg-secondary transition text-xs flex items-center gap-1 text-muted-foreground"
-                  aria-label="Recomeçar"
-                  title="Recomeçar conversa"
-                >
-                  <RefreshCw className="w-3.5 h-3.5" />
-                </button>
+              {!modoAtualizacao && (
+                <>
+                  <input
+                    ref={importInputRef}
+                    type="file"
+                    accept=".txt,text/plain"
+                    className="hidden"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if (f) void handleImportarProgresso(f);
+                      if (importInputRef.current) importInputRef.current.value = "";
+                    }}
+                  />
+                  <button
+                    onClick={() => importInputRef.current?.click()}
+                    className="p-2 rounded-xl hover:bg-secondary transition text-muted-foreground"
+                    aria-label="Importar progresso"
+                    title="Importar progresso (.txt)"
+                  >
+                    <Upload className="w-3.5 h-3.5" />
+                  </button>
+                  {(messages.length > 0 || Object.keys(base).length > 0) && (
+                    <button
+                      onClick={handleSalvarProgresso}
+                      disabled={salvandoParcial}
+                      className="px-2.5 py-1.5 rounded-xl hover:bg-secondary transition text-xs flex items-center gap-1 text-muted-foreground disabled:opacity-50"
+                      aria-label="Salvar progresso"
+                      title="Salvar progresso (envia e baixa .txt)"
+                    >
+                      {salvandoParcial ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <Save className="w-3.5 h-3.5" />
+                      )}
+                      <span className="hidden sm:inline">Salvar</span>
+                    </button>
+                  )}
+                  {(messages.length > 0 || Object.keys(base).length > 0) && (
+                    <button
+                      onClick={() => {
+                        if (confirm("Recomeçar a conversa? O progresso salvo neste navegador será apagado.")) {
+                          recomecarConversa();
+                        }
+                      }}
+                      className="p-2 rounded-xl hover:bg-secondary transition text-muted-foreground"
+                      aria-label="Recomeçar"
+                      title="Recomeçar conversa"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </>
               )}
               <button onClick={onClose} className="p-2 rounded-xl hover:bg-secondary transition" aria-label="Fechar">
                 <X className="w-4 h-4" />
