@@ -1,4 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { Input } from "@/components/ui/input";
+import { RefreshCw } from "lucide-react";
 import {
   ArrowRight,
   Bot,
@@ -26,10 +28,34 @@ import logoAsset from "@/assets/atendenteai-logo.png.asset.json";
 
 const Index = () => {
   const [chatOpen, setChatOpen] = useState(false);
-  const openChat = () => setChatOpen(true);
+  const [promptId, setPromptId] = useState<string | null>(null);
+  const [idInput, setIdInput] = useState("");
+
+  // Carrega ?id=... da URL (caso o cliente volte por link salvo)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const id = params.get("id");
+    if (id) {
+      setPromptId(id);
+      setIdInput(id);
+    }
+  }, []);
+
+  const openChat = () => {
+    setPromptId(null); // criação nova
+    setChatOpen(true);
+  };
+
+  const openChatUpdate = () => {
+    const id = idInput.trim();
+    if (!id) return;
+    setPromptId(id);
+    setChatOpen(true);
+  };
 
   return (
     <div className="min-h-screen bg-background">
+
       {/* NAV */}
       <header className="sticky top-0 z-40 backdrop-blur-xl bg-background/70 border-b border-border/60">
         <div className="container flex items-center justify-between h-16">
@@ -84,7 +110,38 @@ const Index = () => {
                 <Lock className="w-3.5 h-3.5" />
                 Não é uma venda. É uma conversa consultiva para organizar o conhecimento do seu negócio.
               </p>
+
+              {/* Continuar diagnóstico existente */}
+              <div className="mt-6 p-4 rounded-2xl border border-dashed border-border bg-card/60 backdrop-blur-sm">
+                <div className="flex items-center gap-2 mb-2">
+                  <RefreshCw className="w-4 h-4 text-primary" />
+                  <span className="text-sm font-display font-semibold">Já possui uma Base de Conhecimento?</span>
+                </div>
+                <p className="text-xs text-muted-foreground mb-3">
+                  Informe o ID recebido após o primeiro diagnóstico para revisar e atualizar as informações do seu agente.
+                </p>
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <Input
+                    value={idInput}
+                    onChange={(e) => setIdInput(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && openChatUpdate()}
+                    placeholder="Cole aqui o ID da sua base (ex.: abc123...)"
+                    className="flex-1 rounded-xl h-11"
+                    aria-label="ID da Base de Conhecimento existente"
+                  />
+                  <Button
+                    onClick={openChatUpdate}
+                    disabled={!idInput.trim()}
+                    variant="outline"
+                    className="rounded-xl h-11"
+                  >
+                    Continuar atualização
+                  </Button>
+                </div>
+              </div>
             </div>
+
+
 
             {/* Visual: Chat + Base */}
             <div className="relative animate-fade-up" style={{ animationDelay: "0.15s" }}>
@@ -454,7 +511,7 @@ const Index = () => {
         <MessageSquare className="w-5 h-5" />
       </button>
 
-      <DiagnosticoChat open={chatOpen} onClose={() => setChatOpen(false)} />
+      <DiagnosticoChat open={chatOpen} onClose={() => setChatOpen(false)} promptId={promptId} />
     </div>
   );
 };
