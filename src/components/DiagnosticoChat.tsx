@@ -284,6 +284,81 @@ function limparEstadoSalvo() {
   try { localStorage.removeItem(STORAGE_KEY); } catch { /* noop */ }
 }
 
+const TXT_MARKER = "===ATENDENTEAI_PROGRESSO_V1===";
+
+function exportarProgressoTxt(state: PersistedState) {
+  const cabecalho = [
+    "AtendenteAI — Progresso do Arquiteto de Conhecimento IA",
+    `Salvo em: ${new Date(state.updatedAt).toLocaleString("pt-BR")}`,
+    `ID da conversa: ${state.conversationId}`,
+    "",
+    "IMPORTANTE: NÃO edite o conteúdo abaixo da linha marcadora.",
+    "Para retomar, abra o chat e clique em 'Importar progresso' e selecione este arquivo.",
+    "",
+    TXT_MARKER,
+  ].join("\n");
+  const blob = new Blob(
+    [cabecalho + "\n" + JSON.stringify(state)],
+    { type: "text/plain;charset=utf-8" },
+  );
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  const stamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+  a.download = `atendenteai-progresso-${stamp}.txt`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+async function importarProgressoTxt(file: File): Promise<PersistedState | null> {
+  const txt = await file.text();
+  const idx = txt.indexOf(TXT_MARKER);
+  if (idx === -1) return null;
+  const json = txt.slice(idx + TXT_MARKER.length).trim();
+  try {
+    const parsed = JSON.parse(json) as PersistedState;
+    if (!parsed || !Array.isArray(parsed.messages)) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+async function enviarParcialCriacao(
+  conversationId: string,
+  state: PersistedState,
+) {
+  try {
+    await fetch(ENDPOINT, {
+      method: "POST",
+      mode: "no-cors",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        origem: "pagina_implantacao_atendenteai",
+        agente: "Arquiteto de Conhecimento IA",
+        modo: "criacao_parcial",
+        conversation_id: conversationId,
+        base: state.base,
+        lacunas: state.lacunas,
+        notas_de_ajuste: state.notasAjuste,
+        etapa_atual_idx: state.step,
+        finalizado: state.finalizado,
+        prefill: {
+          url: state.prefillUrl,
+          sources: state.prefillSources,
+          summary: state.prefillSummary,
+        },
+        timestamp: new Date(state.updatedAt).toISOString(),
+      }),
+    });
+  } catch (e) {
+    console.error("Erro ao enviar progresso parcial:", e);
+  }
+}
+
+
 const CAMPOS_BASE = [
   "Empresa",
   "Produtos",
