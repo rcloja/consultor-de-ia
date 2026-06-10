@@ -26,32 +26,71 @@ import { Button } from "@/components/ui/button";
 import { DiagnosticoChat } from "@/components/DiagnosticoChat";
 import logoAsset from "@/assets/atendenteai-logo.png.asset.json";
 
+// Formato aceito para o ID da Base de Conhecimento:
+// 6 a 64 caracteres, letras (a-z, A-Z), números, "-" e "_".
+// Aceita também UUIDs e hashes comuns.
+const PROMPT_ID_REGEX = /^[A-Za-z0-9_-]{6,64}$/;
+
+export const validarPromptId = (
+  raw: string,
+): { valido: boolean; valor: string; erro?: string } => {
+  const valor = raw.trim();
+  if (!valor) return { valido: false, valor, erro: "Informe o ID da sua Base de Conhecimento." };
+  if (valor.length < 6) return { valido: false, valor, erro: "O ID deve ter pelo menos 6 caracteres." };
+  if (valor.length > 64) return { valido: false, valor, erro: "O ID não pode ter mais de 64 caracteres." };
+  if (!PROMPT_ID_REGEX.test(valor))
+    return {
+      valido: false,
+      valor,
+      erro: "Formato inválido. Use apenas letras, números, hífen (-) ou underline (_).",
+    };
+  return { valido: true, valor };
+};
+
 const Index = () => {
   const [chatOpen, setChatOpen] = useState(false);
   const [promptId, setPromptId] = useState<string | null>(null);
   const [idInput, setIdInput] = useState("");
+  const [idErro, setIdErro] = useState<string | null>(null);
 
-  // Carrega ?id=... da URL (caso o cliente volte por link salvo)
+  // Validação reativa (apenas exibe erro se o usuário já digitou algo)
+  const idTrim = idInput.trim();
+  const idValidacao = idTrim ? validarPromptId(idInput) : { valido: false, valor: "", erro: undefined };
+  const idValido = idValidacao.valido;
+
+  // Carrega ?id=... da URL (caso o cliente volte por link salvo) — apenas se válido
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const id = params.get("id");
     if (id) {
-      setPromptId(id);
+      const v = validarPromptId(id);
       setIdInput(id);
+      if (v.valido) {
+        setPromptId(v.valor);
+      } else {
+        setIdErro(v.erro ?? "ID inválido na URL.");
+      }
     }
   }, []);
 
   const openChat = () => {
     setPromptId(null); // criação nova
+    setIdErro(null);
     setChatOpen(true);
   };
 
   const openChatUpdate = () => {
-    const id = idInput.trim();
-    if (!id) return;
-    setPromptId(id);
+    const v = validarPromptId(idInput);
+    if (!v.valido) {
+      setIdErro(v.erro ?? "ID inválido.");
+      return;
+    }
+    setIdErro(null);
+    setPromptId(v.valor);
     setChatOpen(true);
   };
+
+
 
   return (
     <div className="min-h-screen bg-background">
