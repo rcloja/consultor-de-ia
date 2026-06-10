@@ -424,6 +424,42 @@ export const DiagnosticoChat = ({ open, onClose, promptId }: Props) => {
     }, 900);
   };
 
+  const finalizarCriacaoCompleta = (
+    baseFinal: Record<string, string[]>,
+    lacunasFinal: string[],
+  ) => {
+    if (enviadoFinalRef.current) return;
+    enviadoFinalRef.current = true;
+    void enviarBaseFinalCriacao(
+      conversationIdRef.current,
+      baseFinal,
+      lacunasFinal,
+      notasAjuste,
+      {
+        url: prefillUrl || undefined,
+        sources: prefillSources,
+        summary: prefillSummary,
+      },
+    ).then(() => {
+      setMessages((m) => [
+        ...m,
+        {
+          role: "system",
+          tone: "save",
+          text: "Base de Conhecimento enviada ao servidor com sucesso.",
+        },
+      ]);
+    });
+  };
+
+  const recomecarConversa = () => {
+    limparEstadoSalvo();
+    enviadoFinalRef.current = false;
+    conversationIdRef.current = gerarConversationId();
+    historyRef.current = [];
+    iniciarModoCriacao(true);
+  };
+
   const iniciarPerguntasAposPrefill = (baseAtual: Record<string, string[]>) => {
     const proxIdx = proximaPerguntaPendente(0, baseAtual);
     setStep(proxIdx);
