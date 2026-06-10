@@ -515,6 +515,10 @@ export const DiagnosticoChat = ({ open, onClose, promptId }: Props) => {
         },
       ]);
     }, 350);
+    void pedirComentarioIA(text, {
+      tipo: "ajuste_em_atualizacao",
+      secao_detectada: secao ?? null,
+    });
   };
 
   const handleConcluirUpdate = async () => {
@@ -554,6 +558,13 @@ export const DiagnosticoChat = ({ open, onClose, promptId }: Props) => {
         ...m,
         { role: "system", tone: "save", text: `Resposta salva em: ${pAtual.campo}.` },
       ]);
+
+      void pedirComentarioIA(text, {
+        pergunta_atual: pAtual.texto,
+        campo: pAtual.campo,
+        tem_lacuna: !!temLacuna,
+      });
+
 
       if (temLacuna) {
         setTimeout(() => {
