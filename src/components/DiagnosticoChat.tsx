@@ -197,7 +197,10 @@ const CAMPOS_BASE = [
 ];
 
 export const DiagnosticoChat = ({ open, onClose, promptId }: Props) => {
-  const modoAtualizacao = !!promptId;
+  // Validação defensiva: mesmo padrão da landing — 6 a 64 chars [A-Za-z0-9_-].
+  const PROMPT_ID_REGEX_INNER = /^[A-Za-z0-9_-]{6,64}$/;
+  const idValido = !!promptId && PROMPT_ID_REGEX_INNER.test(promptId.trim());
+  const modoAtualizacao = idValido;
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
