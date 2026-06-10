@@ -1245,6 +1245,21 @@ export const DiagnosticoChat = ({ open, onClose, promptId }: Props) => {
                     <RefreshCw className="w-2.5 h-2.5" /> Atualização
                   </span>
                 )}
+                {!modoAtualizacao && (
+                  <span
+                    className="text-[10px] px-1.5 py-0.5 rounded-md bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30 inline-flex items-center gap-1"
+                    title={
+                      ultimoSalvamento
+                        ? `Último salvamento: ${ultimoSalvamento.toLocaleString("pt-BR")}`
+                        : "Auto-save ativo — seu progresso será salvo automaticamente"
+                    }
+                  >
+                    <Save className="w-2.5 h-2.5" />
+                    {ultimoSalvamento
+                      ? `Salvo ${ultimoSalvamento.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`
+                      : "Auto-save ativo"}
+                  </span>
+                )}
               </div>
               <div className="text-xs text-muted-foreground flex items-center gap-1.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse-dot" />
