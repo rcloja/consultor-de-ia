@@ -555,6 +555,7 @@ export const DiagnosticoChat = ({ open, onClose, promptId }: Props) => {
   });
 
   const [salvandoParcial, setSalvandoParcial] = useState(false);
+  const [ultimoSalvamento, setUltimoSalvamento] = useState<Date | null>(null);
   const importInputRef = useRef<HTMLInputElement>(null);
 
   // Snapshot sempre atualizado para os listeners de unload/visibility.
