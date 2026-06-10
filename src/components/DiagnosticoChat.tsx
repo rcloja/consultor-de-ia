@@ -1012,9 +1012,25 @@ export const DiagnosticoChat = ({ open, onClose, promptId }: Props) => {
                 {modoAtualizacao ? `ID: ${promptId}` : "Consultor de Implantação · online"}
               </div>
             </div>
-            <button onClick={onClose} className="p-2 rounded-xl hover:bg-secondary transition" aria-label="Fechar">
-              <X className="w-4 h-4" />
-            </button>
+            <div className="flex items-center gap-1">
+              {!modoAtualizacao && (messages.length > 0 || Object.keys(base).length > 0) && (
+                <button
+                  onClick={() => {
+                    if (confirm("Recomeçar a conversa? O progresso salvo neste navegador será apagado.")) {
+                      recomecarConversa();
+                    }
+                  }}
+                  className="p-2 rounded-xl hover:bg-secondary transition text-xs flex items-center gap-1 text-muted-foreground"
+                  aria-label="Recomeçar"
+                  title="Recomeçar conversa"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                </button>
+              )}
+              <button onClick={onClose} className="p-2 rounded-xl hover:bg-secondary transition" aria-label="Fechar">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
           </div>
 
           <div className="px-4 pt-3 pb-2 border-b border-border bg-card">
