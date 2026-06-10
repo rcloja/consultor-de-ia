@@ -209,6 +209,81 @@ async function enviarBaseAtualizada(
   }
 }
 
+async function enviarBaseFinalCriacao(
+  conversationId: string,
+  base: Record<string, string[]>,
+  lacunas: string[],
+  notasAjuste: string[],
+  origemPrefill: { url?: string; sources: string[]; summary: string },
+) {
+  try {
+    await fetch(ENDPOINT, {
+      method: "POST",
+      mode: "no-cors",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        origem: "pagina_implantacao_atendenteai",
+        agente: "Arquiteto de Conhecimento IA",
+        modo: "criacao_finalizada",
+        conversation_id: conversationId,
+        base,
+        lacunas,
+        notas_de_ajuste: notasAjuste,
+        prefill: origemPrefill,
+        timestamp: new Date().toISOString(),
+      }),
+    });
+  } catch (e) {
+    console.error("Erro ao enviar base final (criação):", e);
+  }
+}
+
+// ---------- Persistência local (sobrevive a fechar a página) ----------
+const STORAGE_KEY = "diagnostico_chat_state_v1";
+
+interface PersistedState {
+  conversationId: string;
+  messages: Message[];
+  base: Record<string, string[]>;
+  lacunas: string[];
+  step: number;
+  finalizado: boolean;
+  notasAjuste: string[];
+  forcarCriacao: boolean;
+  prefillStage: "form" | "processing" | "review" | "done";
+  prefillUrl: string;
+  prefillSummary: string;
+  prefillSources: string[];
+  showBase: boolean;
+  history: ImplantadorChatHistoryItem[];
+  enviadoFinal?: boolean;
+  updatedAt: number;
+}
+
+function carregarEstadoSalvo(): PersistedState | null {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as PersistedState;
+    if (!parsed || !Array.isArray(parsed.messages)) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function salvarEstado(state: PersistedState) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  } catch {
+    /* quota / privacidade */
+  }
+}
+
+function limparEstadoSalvo() {
+  try { localStorage.removeItem(STORAGE_KEY); } catch { /* noop */ }
+}
+
 const CAMPOS_BASE = [
   "Empresa",
   "Produtos",
@@ -256,6 +331,8 @@ export const DiagnosticoChat = ({ open, onClose, promptId }: Props) => {
   const inputRef = useRef<HTMLInputElement>(null);
   const conversationIdRef = useRef<string>(gerarConversationId());
   const historyRef = useRef<ImplantadorChatHistoryItem[]>([]);
+  const enviadoFinalRef = useRef<boolean>(false);
+
 
   // Reinicia a conversa a cada abertura do chat
   useEffect(() => {
@@ -347,6 +424,42 @@ export const DiagnosticoChat = ({ open, onClose, promptId }: Props) => {
     }, 900);
   };
 
+  const finalizarCriacaoCompleta = (
+    baseFinal: Record<string, string[]>,
+    lacunasFinal: string[],
+  ) => {
+    if (enviadoFinalRef.current) return;
+    enviadoFinalRef.current = true;
+    void enviarBaseFinalCriacao(
+      conversationIdRef.current,
+      baseFinal,
+      lacunasFinal,
+      notasAjuste,
+      {
+        url: prefillUrl || undefined,
+        sources: prefillSources,
+        summary: prefillSummary,
+      },
+    ).then(() => {
+      setMessages((m) => [
+        ...m,
+        {
+          role: "system",
+          tone: "save",
+          text: "Base de Conhecimento enviada ao servidor com sucesso.",
+        },
+      ]);
+    });
+  };
+
+  const recomecarConversa = () => {
+    limparEstadoSalvo();
+    enviadoFinalRef.current = false;
+    conversationIdRef.current = gerarConversationId();
+    historyRef.current = [];
+    iniciarModoCriacao(true);
+  };
+
   const iniciarPerguntasAposPrefill = (baseAtual: Record<string, string[]>) => {
     const proxIdx = proximaPerguntaPendente(0, baseAtual);
     setStep(proxIdx);
@@ -361,6 +474,7 @@ export const DiagnosticoChat = ({ open, onClose, promptId }: Props) => {
       ]);
       setFinalizado(true);
       setShowBase(true);
+      finalizarCriacaoCompleta(baseAtual, lacunas);
       return;
     }
     setMessages((m) => [
@@ -600,6 +714,59 @@ export const DiagnosticoChat = ({ open, onClose, promptId }: Props) => {
 
   useEffect(() => {
     if (!open) return;
+
+    // MODO ATUALIZAÇÃO: carrega do servidor (não usa cache local).
+    if (idValido && promptId) {
+      setMessages([]);
+      setStep(0);
+      setBase({});
+      setLacunas([]);
+      setFinalizado(false);
+      setShowBase(false);
+      setNotasAjuste([]);
+      setForcarCriacao(false);
+      setPrefillStage("form");
+      setPrefillUrl("");
+      setPrefillFiles([]);
+      setPrefillSummary("");
+      setPrefillSources([]);
+      setPrefillError(null);
+      iniciarModoAtualizacao(true);
+      return;
+    }
+
+    // MODO CRIAÇÃO: tenta restaurar progresso salvo no navegador.
+    const salvo = carregarEstadoSalvo();
+    if (salvo && (salvo.messages.length > 0 || Object.keys(salvo.base ?? {}).length > 0)) {
+      conversationIdRef.current = salvo.conversationId || conversationIdRef.current;
+      historyRef.current = Array.isArray(salvo.history) ? salvo.history : [];
+      enviadoFinalRef.current = !!salvo.enviadoFinal;
+      setMessages(salvo.messages);
+      setBase(salvo.base ?? {});
+      setLacunas(salvo.lacunas ?? []);
+      setStep(salvo.step ?? 0);
+      setFinalizado(!!salvo.finalizado);
+      setShowBase(!!salvo.showBase);
+      setNotasAjuste(salvo.notasAjuste ?? []);
+      setForcarCriacao(!!salvo.forcarCriacao);
+      setPrefillStage(salvo.prefillStage ?? "done");
+      setPrefillUrl(salvo.prefillUrl ?? "");
+      setPrefillSummary(salvo.prefillSummary ?? "");
+      setPrefillSources(salvo.prefillSources ?? []);
+      setPrefillFiles([]);
+      setPrefillError(null);
+      setMessages((m) => [
+        ...m,
+        {
+          role: "system",
+          tone: "info",
+          text: "Recuperei sua conversa de onde você parou. Continue de onde estava ou clique em 'Recomeçar' no topo.",
+        },
+      ]);
+      return;
+    }
+
+    // Sem progresso salvo — abre limpo.
     setMessages([]);
     setStep(0);
     setBase({});
@@ -614,14 +781,8 @@ export const DiagnosticoChat = ({ open, onClose, promptId }: Props) => {
     setPrefillSummary("");
     setPrefillSources([]);
     setPrefillError(null);
+    enviadoFinalRef.current = false;
 
-    if (idValido && promptId) {
-      iniciarModoAtualizacao(true);
-      return;
-    }
-
-    // MODO CRIAÇÃO (padrão) — abre com saudação e painel de prefill.
-    // As perguntas só começam quando o usuário envia/pula o prefill.
     setTyping(true);
     const t = setTimeout(() => {
       setMessages([
@@ -637,6 +798,47 @@ export const DiagnosticoChat = ({ open, onClose, promptId }: Props) => {
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, promptId]);
+
+  // Persiste estado da conversa (modo criação) a cada mudança relevante.
+  useEffect(() => {
+    if (!open) return;
+    if (idValido && !forcarCriacao) return; // modo atualização não persiste localmente
+    if (messages.length === 0 && Object.keys(base).length === 0) return;
+    salvarEstado({
+      conversationId: conversationIdRef.current,
+      messages,
+      base,
+      lacunas,
+      step,
+      finalizado,
+      notasAjuste,
+      forcarCriacao,
+      prefillStage,
+      prefillUrl,
+      prefillSummary,
+      prefillSources,
+      showBase,
+      history: historyRef.current,
+      enviadoFinal: enviadoFinalRef.current,
+      updatedAt: Date.now(),
+    });
+  }, [
+    open,
+    idValido,
+    forcarCriacao,
+    messages,
+    base,
+    lacunas,
+    step,
+    finalizado,
+    notasAjuste,
+    prefillStage,
+    prefillUrl,
+    prefillSummary,
+    prefillSources,
+    showBase,
+  ]);
+
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
@@ -777,6 +979,7 @@ export const DiagnosticoChat = ({ open, onClose, promptId }: Props) => {
           ]);
           setFinalizado(true);
           setShowBase(true);
+          finalizarCriacaoCompleta(baseAposResposta, lacunas);
         }, 900);
       } else {
         setTimeout(() => fazerPergunta(proxIdx), temLacuna ? 1400 : 700);
@@ -809,9 +1012,25 @@ export const DiagnosticoChat = ({ open, onClose, promptId }: Props) => {
                 {modoAtualizacao ? `ID: ${promptId}` : "Consultor de Implantação · online"}
               </div>
             </div>
-            <button onClick={onClose} className="p-2 rounded-xl hover:bg-secondary transition" aria-label="Fechar">
-              <X className="w-4 h-4" />
-            </button>
+            <div className="flex items-center gap-1">
+              {!modoAtualizacao && (messages.length > 0 || Object.keys(base).length > 0) && (
+                <button
+                  onClick={() => {
+                    if (confirm("Recomeçar a conversa? O progresso salvo neste navegador será apagado.")) {
+                      recomecarConversa();
+                    }
+                  }}
+                  className="p-2 rounded-xl hover:bg-secondary transition text-xs flex items-center gap-1 text-muted-foreground"
+                  aria-label="Recomeçar"
+                  title="Recomeçar conversa"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                </button>
+              )}
+              <button onClick={onClose} className="p-2 rounded-xl hover:bg-secondary transition" aria-label="Fechar">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
           </div>
 
           <div className="px-4 pt-3 pb-2 border-b border-border bg-card">
