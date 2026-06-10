@@ -1057,6 +1057,7 @@ export const DiagnosticoChat = ({ open, onClose, promptId }: Props) => {
       enviadoFinal: enviadoFinalRef.current,
       updatedAt: Date.now(),
     });
+    setUltimoSalvamento(new Date());
   }, [
     open,
     idValido,
