@@ -690,6 +690,35 @@ export const DiagnosticoChat = ({ open, onClose, promptId }: Props) => {
     if (modoAtualizacao) return handleSendUpdate();
     const text = input.trim();
     if (!text || finalizado) return;
+
+    // Se estamos na revisão do pré-preenchimento, tratamos a mensagem como
+    // um ajuste/comentário antes de prosseguir para as lacunas.
+    if (prefillStage === "review") {
+      setMessages((m) => [...m, { role: "user", text }]);
+      setInput("");
+      setNotasAjuste((n) => [...n, text]);
+      const lower = text.toLowerCase();
+      const secao = CAMPOS_BASE.find((c) => lower.includes(c.toLowerCase()));
+      if (secao) {
+        setBase((b) => ({ ...b, [secao]: [...(b[secao] ?? []), text] }));
+      }
+      setTimeout(() => {
+        setMessages((m) => [
+          ...m,
+          {
+            role: "system",
+            tone: "save",
+            text: secao ? `Ajuste registrado em: ${secao}.` : "Ajuste registrado para esta sessão.",
+          },
+        ]);
+      }, 300);
+      void pedirComentarioIA(text, {
+        tipo: "ajuste_em_prefill",
+        secao_detectada: secao ?? null,
+      });
+      return;
+    }
+
     const pAtual = PERGUNTAS[step];
     if (!pAtual) return;
 
@@ -728,7 +757,12 @@ export const DiagnosticoChat = ({ open, onClose, promptId }: Props) => {
         }, 500);
       }
 
-      const proxIdx = step + 1;
+      // Próxima pergunta — pula campos já preenchidos pelo prefill.
+      const baseAposResposta = {
+        ...base,
+        [pAtual.campo]: [...(base[pAtual.campo] ?? []), text],
+      };
+      const proxIdx = proximaPerguntaPendente(step + 1, baseAposResposta);
       setStep(proxIdx);
 
       if (proxIdx >= TOTAL) {
