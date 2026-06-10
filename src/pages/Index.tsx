@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DiagnosticoChat } from "@/components/DiagnosticoChat";
+import logoAsset from "@/assets/atendenteai-logo.png.asset.json";
 
 const Index = () => {
   const [chatOpen, setChatOpen] = useState(false);
@@ -33,9 +34,7 @@ const Index = () => {
       <header className="sticky top-0 z-40 backdrop-blur-xl bg-background/70 border-b border-border/60">
         <div className="container flex items-center justify-between h-16">
           <a href="#inicio" className="flex items-center gap-2">
-            <div className="w-9 h-9 rounded-xl gradient-hero flex items-center justify-center shadow-glow">
-              <Bot className="w-5 h-5 text-white" />
-            </div>
+            <img src={logoAsset.url} alt="AtendenteAI" className="w-9 h-9 object-contain" />
             <span className="font-display font-bold text-lg">AtendenteAI</span>
           </a>
           <nav className="hidden md:flex items-center gap-8 text-sm font-medium text-muted-foreground">
@@ -439,9 +438,7 @@ const Index = () => {
       <footer className="border-t border-border py-10">
         <div className="container flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-muted-foreground">
           <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg gradient-hero flex items-center justify-center">
-              <Bot className="w-4 h-4 text-white" />
-            </div>
+            <img src={logoAsset.url} alt="AtendenteAI" className="w-7 h-7 object-contain" />
             <span className="font-display font-semibold text-foreground">AtendenteAI</span>
           </div>
           <p>© {new Date().getFullYear()} AtendenteAI — Implantação consultiva de IA.</p>
