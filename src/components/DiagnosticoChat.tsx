@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import { Bot, Send, X, Sparkles, CheckCircle2, AlertCircle, FileText, RefreshCw, Save } from "lucide-react";
+import { Bot, Send, X, Sparkles, CheckCircle2, AlertCircle, FileText, RefreshCw, Save, Globe, Upload, Loader2, SkipForward } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { chamarImplantadorAi, type ImplantadorChatHistoryItem } from "@/lib/implantadorAi";
+import { chamarPrefill, extractTextFromFile, type PrefillDoc } from "@/lib/prefill";
 
 const AGENT_ID = "arquiteto-conhecimento-ia";
 
