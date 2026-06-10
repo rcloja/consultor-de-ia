@@ -907,6 +907,29 @@ export const DiagnosticoChat = ({ open, onClose, promptId }: Props) => {
               </div>
             )}
 
+            {!modoAtualizacao && (prefillStage === "form" || prefillStage === "processing") && (
+              <PrefillPanel
+                url={prefillUrl}
+                onUrlChange={setPrefillUrl}
+                files={prefillFiles}
+                onFiles={togglePrefillFile}
+                onRemoveFile={removerPrefillFile}
+                onSubmit={submeterPrefill}
+                onSkip={pularPrefill}
+                processing={prefillStage === "processing"}
+                error={prefillError}
+              />
+            )}
+
+            {!modoAtualizacao && prefillStage === "review" && (
+              <PrefillReview
+                summary={prefillSummary}
+                sources={prefillSources}
+                base={base}
+                onConfirm={confirmarPrefill}
+              />
+            )}
+
             {showBase && <BasePreview base={base} lacunas={lacunas} />}
           </div>
 
