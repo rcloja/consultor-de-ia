@@ -120,40 +120,54 @@ async function enviarPerguntaParaServidor(
   }
 }
 
-async function carregarBaseExistente(id: string): Promise<{
-  base: Record<string, string[]>;
-  lacunas: string[];
-  raw?: unknown;
-} | null> {
+type LoadResult =
+  | { status: "ok"; base: Record<string, string[]>; lacunas: string[]; raw?: unknown }
+  | { status: "cors"; detail: string }
+  | { status: "notfound" }
+  | { status: "http"; code: number }
+  | { status: "parse"; detail: string };
+
+async function carregarBaseExistente(id: string): Promise<LoadResult> {
+  let resp: Response;
   try {
-    const resp = await fetch(`${ENDPOINT}?id=${encodeURIComponent(id)}`, {
+    resp = await fetch(`${ENDPOINT}?id=${encodeURIComponent(id)}`, {
       method: "GET",
       headers: { Accept: "application/json" },
     });
-    if (!resp.ok) return null;
+  } catch (e) {
+    // fetch() lançando TypeError geralmente indica bloqueio de CORS,
+    // falha de rede, DNS, ou o servidor não respondeu com cabeçalho
+    // Access-Control-Allow-Origin para a origem atual.
+    const detail = e instanceof Error ? e.message : String(e);
+    console.error("Falha de rede/CORS ao carregar base existente:", e);
+    return { status: "cors", detail };
+  }
+
+  if (resp.status === 404) return { status: "notfound" };
+  if (!resp.ok) return { status: "http", code: resp.status };
+
+  try {
     const ct = resp.headers.get("content-type") ?? "";
     if (ct.includes("application/json")) {
       const data = await resp.json();
-      // Aceita estruturas variadas: { base: {...}, lacunas: [...] } ou direto um objeto de campos
       const base =
         (data?.base as Record<string, string[]>) ??
         (data?.knowledge_base as Record<string, string[]>) ??
         (typeof data === "object" && data !== null ? (data as Record<string, string[]>) : {});
       const lacunas: string[] = Array.isArray(data?.lacunas) ? data.lacunas : [];
-      // garante shape de arrays de string
       const normalized: Record<string, string[]> = {};
       for (const [k, v] of Object.entries(base)) {
         if (Array.isArray(v)) normalized[k] = v.map(String);
         else if (typeof v === "string") normalized[k] = [v];
       }
-      return { base: normalized, lacunas, raw: data };
+      return { status: "ok", base: normalized, lacunas, raw: data };
     }
-    // fallback texto puro: coloca tudo em "Empresa"
     const txt = await resp.text();
-    return { base: { Empresa: [txt] }, lacunas: [] };
+    return { status: "ok", base: { Empresa: [txt] }, lacunas: [] };
   } catch (e) {
-    console.error("Falha ao carregar base existente:", e);
-    return null;
+    const detail = e instanceof Error ? e.message : String(e);
+    console.error("Falha ao interpretar resposta da base:", e);
+    return { status: "parse", detail };
   }
 }
 
