@@ -555,6 +555,7 @@ export const DiagnosticoChat = ({ open, onClose, promptId }: Props) => {
   });
 
   const [salvandoParcial, setSalvandoParcial] = useState(false);
+  const [ultimoSalvamento, setUltimoSalvamento] = useState<Date | null>(null);
   const importInputRef = useRef<HTMLInputElement>(null);
 
   // Snapshot sempre atualizado para os listeners de unload/visibility.
@@ -610,6 +611,7 @@ export const DiagnosticoChat = ({ open, onClose, promptId }: Props) => {
             body: payload,
           }).catch(() => { /* noop */ });
         }
+        setUltimoSalvamento(new Date());
       } catch (e) {
         console.error("Falha no auto-save:", e);
       }
@@ -637,6 +639,7 @@ export const DiagnosticoChat = ({ open, onClose, promptId }: Props) => {
     if (salvandoParcial) return;
     const snap = snapshotAtual();
     salvarEstado(snap);
+    setUltimoSalvamento(new Date());
     setSalvandoParcial(true);
     try {
       await enviarParcialCriacao(conversationIdRef.current, snap);
@@ -1057,6 +1060,7 @@ export const DiagnosticoChat = ({ open, onClose, promptId }: Props) => {
       enviadoFinal: enviadoFinalRef.current,
       updatedAt: Date.now(),
     });
+    setUltimoSalvamento(new Date());
   }, [
     open,
     idValido,
@@ -1239,6 +1243,21 @@ export const DiagnosticoChat = ({ open, onClose, promptId }: Props) => {
                 {modoAtualizacao && (
                   <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-accent/15 text-accent border border-accent/30 inline-flex items-center gap-1">
                     <RefreshCw className="w-2.5 h-2.5" /> Atualização
+                  </span>
+                )}
+                {!modoAtualizacao && (
+                  <span
+                    className="text-[10px] px-1.5 py-0.5 rounded-md bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30 inline-flex items-center gap-1"
+                    title={
+                      ultimoSalvamento
+                        ? `Último salvamento: ${ultimoSalvamento.toLocaleString("pt-BR")}`
+                        : "Auto-save ativo — seu progresso será salvo automaticamente"
+                    }
+                  >
+                    <Save className="w-2.5 h-2.5" />
+                    {ultimoSalvamento
+                      ? `Salvo ${ultimoSalvamento.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`
+                      : "Auto-save ativo"}
                   </span>
                 )}
               </div>
