@@ -28,10 +28,34 @@ import logoAsset from "@/assets/atendenteai-logo.png.asset.json";
 
 const Index = () => {
   const [chatOpen, setChatOpen] = useState(false);
-  const openChat = () => setChatOpen(true);
+  const [promptId, setPromptId] = useState<string | null>(null);
+  const [idInput, setIdInput] = useState("");
+
+  // Carrega ?id=... da URL (caso o cliente volte por link salvo)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const id = params.get("id");
+    if (id) {
+      setPromptId(id);
+      setIdInput(id);
+    }
+  }, []);
+
+  const openChat = () => {
+    setPromptId(null); // criação nova
+    setChatOpen(true);
+  };
+
+  const openChatUpdate = () => {
+    const id = idInput.trim();
+    if (!id) return;
+    setPromptId(id);
+    setChatOpen(true);
+  };
 
   return (
     <div className="min-h-screen bg-background">
+
       {/* NAV */}
       <header className="sticky top-0 z-40 backdrop-blur-xl bg-background/70 border-b border-border/60">
         <div className="container flex items-center justify-between h-16">
