@@ -956,7 +956,7 @@ export const DiagnosticoChat = ({ open, onClose, promptId }: Props) => {
                 disabled={finalizado || carregandoBase || prefillStage === "processing" || prefillStage === "form"}
                 className="flex-1 px-4 py-3 bg-secondary rounded-2xl text-sm outline-none focus:ring-2 focus:ring-primary/30 transition disabled:opacity-60"
               />
-              <Button onClick={handleSend} disabled={finalizado || carregandoBase} size="icon" className="rounded-2xl h-12 w-12 shrink-0">
+              <Button onClick={handleSend} disabled={finalizado || carregandoBase || prefillStage === "processing" || prefillStage === "form"} size="icon" className="rounded-2xl h-12 w-12 shrink-0">
                 <Send className="w-4 h-4" />
               </Button>
             </div>
