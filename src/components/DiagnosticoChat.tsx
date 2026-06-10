@@ -3,10 +3,14 @@ import { Bot, Send, X, Sparkles, CheckCircle2, AlertCircle, FileText, RefreshCw,
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 
+type MessageAction = { label: string; kind: "retry" | "create" };
+
 interface Message {
   role: "agent" | "user" | "system";
   text: string;
-  tone?: "save" | "gap" | "info";
+  tone?: "save" | "gap" | "info" | "error";
+  title?: string;
+  actions?: MessageAction[];
 }
 
 interface Pergunta {
@@ -116,40 +120,54 @@ async function enviarPerguntaParaServidor(
   }
 }
 
-async function carregarBaseExistente(id: string): Promise<{
-  base: Record<string, string[]>;
-  lacunas: string[];
-  raw?: unknown;
-} | null> {
+type LoadResult =
+  | { status: "ok"; base: Record<string, string[]>; lacunas: string[]; raw?: unknown }
+  | { status: "cors"; detail: string }
+  | { status: "notfound" }
+  | { status: "http"; code: number }
+  | { status: "parse"; detail: string };
+
+async function carregarBaseExistente(id: string): Promise<LoadResult> {
+  let resp: Response;
   try {
-    const resp = await fetch(`${ENDPOINT}?id=${encodeURIComponent(id)}`, {
+    resp = await fetch(`${ENDPOINT}?id=${encodeURIComponent(id)}`, {
       method: "GET",
       headers: { Accept: "application/json" },
     });
-    if (!resp.ok) return null;
+  } catch (e) {
+    // fetch() lançando TypeError geralmente indica bloqueio de CORS,
+    // falha de rede, DNS, ou o servidor não respondeu com cabeçalho
+    // Access-Control-Allow-Origin para a origem atual.
+    const detail = e instanceof Error ? e.message : String(e);
+    console.error("Falha de rede/CORS ao carregar base existente:", e);
+    return { status: "cors", detail };
+  }
+
+  if (resp.status === 404) return { status: "notfound" };
+  if (!resp.ok) return { status: "http", code: resp.status };
+
+  try {
     const ct = resp.headers.get("content-type") ?? "";
     if (ct.includes("application/json")) {
       const data = await resp.json();
-      // Aceita estruturas variadas: { base: {...}, lacunas: [...] } ou direto um objeto de campos
       const base =
         (data?.base as Record<string, string[]>) ??
         (data?.knowledge_base as Record<string, string[]>) ??
         (typeof data === "object" && data !== null ? (data as Record<string, string[]>) : {});
       const lacunas: string[] = Array.isArray(data?.lacunas) ? data.lacunas : [];
-      // garante shape de arrays de string
       const normalized: Record<string, string[]> = {};
       for (const [k, v] of Object.entries(base)) {
         if (Array.isArray(v)) normalized[k] = v.map(String);
         else if (typeof v === "string") normalized[k] = [v];
       }
-      return { base: normalized, lacunas, raw: data };
+      return { status: "ok", base: normalized, lacunas, raw: data };
     }
-    // fallback texto puro: coloca tudo em "Empresa"
     const txt = await resp.text();
-    return { base: { Empresa: [txt] }, lacunas: [] };
+    return { status: "ok", base: { Empresa: [txt] }, lacunas: [] };
   } catch (e) {
-    console.error("Falha ao carregar base existente:", e);
-    return null;
+    const detail = e instanceof Error ? e.message : String(e);
+    console.error("Falha ao interpretar resposta da base:", e);
+    return { status: "parse", detail };
   }
 }
 
@@ -200,7 +218,6 @@ export const DiagnosticoChat = ({ open, onClose, promptId }: Props) => {
   // Validação defensiva: mesmo padrão da landing — 6 a 64 chars [A-Za-z0-9_-].
   const PROMPT_ID_REGEX_INNER = /^[A-Za-z0-9_-]{6,64}$/;
   const idValido = !!promptId && PROMPT_ID_REGEX_INNER.test(promptId.trim());
-  const modoAtualizacao = idValido;
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
@@ -213,8 +230,11 @@ export const DiagnosticoChat = ({ open, onClose, promptId }: Props) => {
   const [notasAjuste, setNotasAjuste] = useState<string[]>([]);
   const [carregandoBase, setCarregandoBase] = useState(false);
   const [enviandoUpdate, setEnviandoUpdate] = useState(false);
+  const [forcarCriacao, setForcarCriacao] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const modoAtualizacao = idValido && !forcarCriacao;
 
   const etapaIdxAtual = Math.min(step, TOTAL - 1);
   const etapaAtual = modoAtualizacao
@@ -242,6 +262,140 @@ export const DiagnosticoChat = ({ open, onClose, promptId }: Props) => {
     }, 900);
   };
 
+  const iniciarModoCriacao = (resetMensagens = true) => {
+    setCarregandoBase(false);
+    setForcarCriacao(true);
+    setStep(0);
+    setBase({});
+    setLacunas([]);
+    setShowBase(false);
+    setNotasAjuste([]);
+    setFinalizado(false);
+    if (resetMensagens) setMessages([]);
+    setTyping(true);
+    setTimeout(() => {
+      setMessages((m) => [
+        ...m,
+        {
+          role: "system",
+          tone: "info",
+          text: "Modo criação ativado. Vamos construir uma nova Base de Conhecimento do zero.",
+        },
+        { role: "agent", text: OPENING },
+      ]);
+      setTyping(false);
+      setTimeout(() => fazerPergunta(0), 600);
+    }, 400);
+  };
+
+  const iniciarModoAtualizacao = async (mostrarSaudacao = true) => {
+    if (!promptId) return;
+    setCarregandoBase(true);
+    setTyping(true);
+    if (mostrarSaudacao) {
+      setMessages([
+        {
+          role: "agent",
+          text: `Olá novamente! Localizei o identificador da sua Base de Conhecimento (ID: ${promptId}). Vou carregar as informações já cadastradas para revisarmos juntos.`,
+        },
+      ]);
+    } else {
+      setMessages((m) => [
+        ...m,
+        { role: "system", tone: "info", text: "Tentando carregar novamente a base existente..." },
+      ]);
+    }
+
+    const resultado = await carregarBaseExistente(promptId);
+    setCarregandoBase(false);
+    setTyping(false);
+
+    if (resultado.status === "ok") {
+      setBase(resultado.base);
+      setLacunas(resultado.lacunas);
+      setShowBase(true);
+      setMessages((m) => [
+        ...m,
+        { role: "system", tone: "save", text: "Base de Conhecimento carregada com sucesso." },
+        {
+          role: "agent",
+          text:
+            'Revise abaixo o que já está cadastrado. Me diga, em mensagens, o que deseja atualizar (ex.: "Atualizar política de reembolso para 7 dias" ou "Adicionar novo diferencial: atendimento 24h"). Quando terminar, clique em "Concluir atualização" e eu envio tudo de volta.',
+        },
+      ]);
+      inputRef.current?.focus();
+      return;
+    }
+
+    if (resultado.status === "notfound") {
+      setMessages((m) => [
+        ...m,
+        {
+          role: "system",
+          tone: "error",
+          title: "ID não encontrado",
+          text: `O servidor não localizou nenhuma base com o ID "${promptId}". Verifique se digitou corretamente, tente novamente ou inicie uma nova base no modo criação.`,
+          actions: [
+            { label: "Tentar novamente", kind: "retry" },
+            { label: "Iniciar nova base (modo criação)", kind: "create" },
+          ],
+        },
+      ]);
+      return;
+    }
+
+    if (resultado.status === "http") {
+      setMessages((m) => [
+        ...m,
+        {
+          role: "system",
+          tone: "error",
+          title: `Erro do servidor (HTTP ${resultado.code})`,
+          text: "O servidor respondeu com erro ao tentar carregar a base. Você pode tentar novamente em alguns instantes ou seguir em modo criação.",
+          actions: [
+            { label: "Tentar novamente", kind: "retry" },
+            { label: "Continuar em modo criação", kind: "create" },
+          ],
+        },
+      ]);
+      return;
+    }
+
+    if (resultado.status === "parse") {
+      setMessages((m) => [
+        ...m,
+        {
+          role: "system",
+          tone: "error",
+          title: "Resposta inválida do servidor",
+          text: `Não consegui interpretar os dados recebidos (${resultado.detail}). Tente novamente ou siga em modo criação.`,
+          actions: [
+            { label: "Tentar novamente", kind: "retry" },
+            { label: "Continuar em modo criação", kind: "create" },
+          ],
+        },
+      ]);
+      return;
+    }
+
+    // status === "cors" (ou falha de rede equivalente)
+    setMessages((m) => [
+      ...m,
+      {
+        role: "system",
+        tone: "error",
+        title: "Não foi possível carregar sua base (bloqueio de CORS ou falha de rede)",
+        text:
+          "O navegador impediu a leitura da resposta do servidor admin.atendenteai.com.br. Isso normalmente acontece quando o servidor não envia o cabeçalho Access-Control-Allow-Origin para esta página. " +
+          "Verifique sua conexão e tente novamente. Se o problema persistir, é necessário liberar CORS no servidor (ou usar um proxy/backend intermediário). Enquanto isso, você pode continuar em modo criação e construir uma nova base do zero.",
+        actions: [
+          { label: "Tentar novamente", kind: "retry" },
+          { label: "Continuar em modo criação", kind: "create" },
+        ],
+      },
+    ]);
+  };
+
   useEffect(() => {
     if (!open) return;
     setMessages([]);
@@ -251,51 +405,10 @@ export const DiagnosticoChat = ({ open, onClose, promptId }: Props) => {
     setFinalizado(false);
     setShowBase(false);
     setNotasAjuste([]);
+    setForcarCriacao(false);
 
-    if (modoAtualizacao && promptId) {
-      // MODO ATUALIZAÇÃO
-      setCarregandoBase(true);
-      setTyping(true);
-      setMessages([
-        {
-          role: "agent",
-          text: `Olá novamente! Localizei o identificador da sua Base de Conhecimento (ID: ${promptId}). Vou carregar as informações já cadastradas para revisarmos juntos.`,
-        },
-      ]);
-      (async () => {
-        const resultado = await carregarBaseExistente(promptId);
-        setCarregandoBase(false);
-        setTyping(false);
-        if (!resultado) {
-          setMessages((m) => [
-            ...m,
-            {
-              role: "system",
-              tone: "gap",
-              text: "Não foi possível carregar a base existente (verifique o ID ou a liberação de CORS no servidor). Você pode digitar abaixo o que deseja ajustar — registrarei como notas de atualização.",
-            },
-          ]);
-          setShowBase(true);
-          return;
-        }
-        setBase(resultado.base);
-        setLacunas(resultado.lacunas);
-        setShowBase(true);
-        setMessages((m) => [
-          ...m,
-          {
-            role: "system",
-            tone: "save",
-            text: "Base de Conhecimento carregada com sucesso.",
-          },
-          {
-            role: "agent",
-            text:
-              "Revise abaixo o que já está cadastrado. Me diga, em mensagens, o que deseja atualizar (ex.: \"Atualizar política de reembolso para 7 dias\" ou \"Adicionar novo diferencial: atendimento 24h\"). Quando terminar, clique em \"Concluir atualização\" e eu envio tudo de volta.",
-          },
-        ]);
-        inputRef.current?.focus();
-      })();
+    if (idValido && promptId) {
+      iniciarModoAtualizacao(true);
       return;
     }
 
@@ -456,6 +569,42 @@ export const DiagnosticoChat = ({ open, onClose, promptId }: Props) => {
           <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-3 bg-gradient-to-b from-background to-secondary/30">
             {messages.map((m, i) => {
               if (m.role === "system") {
+                if (m.tone === "error") {
+                  return (
+                    <div key={i} className="flex justify-center animate-fade-up">
+                      <div className="w-full max-w-[95%] rounded-2xl border border-destructive/30 bg-destructive/5 p-4 text-left">
+                        <div className="flex items-start gap-2 mb-1.5">
+                          <AlertCircle className="w-4 h-4 text-destructive shrink-0 mt-0.5" />
+                          <div className="text-sm font-semibold text-destructive">
+                            {m.title ?? "Não foi possível carregar a base"}
+                          </div>
+                        </div>
+                        <div className="text-xs text-destructive/90 leading-relaxed pl-6 whitespace-pre-line">
+                          {m.text}
+                        </div>
+                        {m.actions && m.actions.length > 0 && (
+                          <div className="flex flex-wrap gap-2 mt-3 pl-6">
+                            {m.actions.map((a, j) => (
+                              <Button
+                                key={j}
+                                size="sm"
+                                variant={a.kind === "retry" ? "default" : "outline"}
+                                onClick={() =>
+                                  a.kind === "retry" ? iniciarModoAtualizacao(false) : iniciarModoCriacao(false)
+                                }
+                                disabled={carregandoBase}
+                                className="rounded-xl h-8 text-xs"
+                              >
+                                {a.kind === "retry" ? <RefreshCw className="w-3 h-3 mr-1.5" /> : null}
+                                {a.label}
+                              </Button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                }
                 const isGap = m.tone === "gap";
                 return (
                   <div key={i} className="flex justify-center animate-fade-up">
