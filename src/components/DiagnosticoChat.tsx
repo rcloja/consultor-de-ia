@@ -2,6 +2,16 @@ import { useEffect, useRef, useState } from "react";
 import { Bot, Send, X, Sparkles, CheckCircle2, AlertCircle, FileText, RefreshCw, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
+import { chamarImplantadorAi, type ImplantadorChatHistoryItem } from "@/lib/implantadorAi";
+
+const AGENT_ID = "arquiteto-conhecimento-ia";
+
+function gerarConversationId() {
+  try {
+    if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID();
+  } catch { /* noop */ }
+  return `conv-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
 
 type MessageAction = { label: string; kind: "retry" | "create" };
 
