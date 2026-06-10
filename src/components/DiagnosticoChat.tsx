@@ -324,6 +324,14 @@ export const DiagnosticoChat = ({ open, onClose, promptId }: Props) => {
     (CAMPOS_BASE.filter((c) => (base[c]?.length ?? 0) > 0).length / CAMPOS_BASE.length) * 100,
   );
 
+  const proximaPerguntaPendente = (fromIdx: number, currentBase: Record<string, string[]>): number => {
+    for (let i = fromIdx; i < TOTAL; i++) {
+      const campo = PERGUNTAS[i].campo;
+      if (!(currentBase[campo]?.length)) return i;
+    }
+    return TOTAL;
+  };
+
   const fazerPergunta = (idx: number) => {
     const p = PERGUNTAS[idx];
     if (!p) return;
@@ -339,6 +347,113 @@ export const DiagnosticoChat = ({ open, onClose, promptId }: Props) => {
     }, 900);
   };
 
+  const iniciarPerguntasAposPrefill = (baseAtual: Record<string, string[]>) => {
+    const proxIdx = proximaPerguntaPendente(0, baseAtual);
+    setStep(proxIdx);
+    if (proxIdx >= TOTAL) {
+      setMessages((m) => [
+        ...m,
+        {
+          role: "agent",
+          text:
+            "Excelente! Com o material que você enviou já consegui cobrir todas as seções principais. Revise abaixo a Base de Conhecimento e me diga se deseja ajustar algo.",
+        },
+      ]);
+      setFinalizado(true);
+      setShowBase(true);
+      return;
+    }
+    setMessages((m) => [
+      ...m,
+      {
+        role: "agent",
+        text:
+          "Agora vou perguntar apenas o que ficou faltando para completar a Base. Pode responder com calma.",
+      },
+    ]);
+    setTimeout(() => fazerPergunta(proxIdx), 700);
+  };
+
+  const togglePrefillFile = (files: FileList | null) => {
+    if (!files) return;
+    const arr = Array.from(files);
+    const allowed = arr.filter((f) => {
+      const n = f.name.toLowerCase();
+      return (
+        n.endsWith(".pdf") ||
+        n.endsWith(".docx") ||
+        n.endsWith(".md") ||
+        n.endsWith(".txt")
+      );
+    });
+    setPrefillFiles((prev) => {
+      const map = new Map(prev.map((f) => [f.name, f]));
+      for (const f of allowed) map.set(f.name, f);
+      return Array.from(map.values()).slice(0, 8);
+    });
+  };
+
+  const removerPrefillFile = (name: string) => {
+    setPrefillFiles((prev) => prev.filter((f) => f.name !== name));
+  };
+
+  const submeterPrefill = async () => {
+    setPrefillError(null);
+    const url = prefillUrl.trim();
+    if (!url && prefillFiles.length === 0) {
+      setPrefillError("Informe um site ou anexe ao menos um arquivo.");
+      return;
+    }
+    setPrefillStage("processing");
+    try {
+      // Extrai texto dos arquivos no navegador
+      const documents: PrefillDoc[] = [];
+      for (const f of prefillFiles) {
+        try {
+          const text = await extractTextFromFile(f);
+          if (text.trim()) documents.push({ name: f.name, text });
+        } catch (e) {
+          console.error("Falha ao extrair", f.name, e);
+        }
+      }
+      const result = await chamarPrefill({
+        url: url || undefined,
+        documents: documents.length > 0 ? documents : undefined,
+      });
+      setBase(result.base);
+      setPrefillSummary(result.summary);
+      setPrefillSources(result.sources);
+      setPrefillStage("review");
+      setMessages((m) => [
+        ...m,
+        {
+          role: "system",
+          tone: "save",
+          text: `Material processado: ${result.sources.length} fonte(s).`,
+        },
+        {
+          role: "agent",
+          text:
+            "Li o material que você enviou e organizei as informações relevantes abaixo. Confira o que foi lido. Se algo estiver errado ou faltando, descreva no chat o ajuste; quando estiver tudo certo, clique em 'Prosseguir para as lacunas'.",
+        },
+      ]);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Falha ao processar material.";
+      setPrefillError(msg);
+      setPrefillStage("form");
+    }
+  };
+
+  const pularPrefill = () => {
+    setPrefillStage("done");
+    setTimeout(() => fazerPergunta(0), 400);
+  };
+
+  const confirmarPrefill = () => {
+    setPrefillStage("done");
+    iniciarPerguntasAposPrefill(base);
+  };
+
   const iniciarModoCriacao = (resetMensagens = true) => {
     setCarregandoBase(false);
     setForcarCriacao(true);
@@ -348,6 +463,12 @@ export const DiagnosticoChat = ({ open, onClose, promptId }: Props) => {
     setShowBase(false);
     setNotasAjuste([]);
     setFinalizado(false);
+    setPrefillStage("form");
+    setPrefillUrl("");
+    setPrefillFiles([]);
+    setPrefillSummary("");
+    setPrefillSources([]);
+    setPrefillError(null);
     if (resetMensagens) setMessages([]);
     setTyping(true);
     setTimeout(() => {
@@ -359,9 +480,13 @@ export const DiagnosticoChat = ({ open, onClose, promptId }: Props) => {
           text: "Modo criação ativado. Vamos construir uma nova Base de Conhecimento do zero.",
         },
         { role: "agent", text: OPENING },
+        {
+          role: "agent",
+          text:
+            "Antes de começar as perguntas, você pode acelerar o processo: informe o site da empresa e/ou envie materiais (PDF, DOCX, MD, TXT) como manual, apresentação ou catálogo. Vou ler tudo e pré-preencher o que conseguir, depois perguntamos apenas o que faltar.",
+        },
       ]);
       setTyping(false);
-      setTimeout(() => fazerPergunta(0), 600);
     }, 400);
   };
 
