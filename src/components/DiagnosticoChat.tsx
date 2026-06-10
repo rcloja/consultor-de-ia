@@ -242,6 +242,16 @@ export const DiagnosticoChat = ({ open, onClose, promptId }: Props) => {
   const [carregandoBase, setCarregandoBase] = useState(false);
   const [enviandoUpdate, setEnviandoUpdate] = useState(false);
   const [forcarCriacao, setForcarCriacao] = useState(false);
+
+  // Pré-preenchimento (site + arquivos) — só no modo criação
+  type PrefillStage = "form" | "processing" | "review" | "done";
+  const [prefillStage, setPrefillStage] = useState<PrefillStage>("form");
+  const [prefillUrl, setPrefillUrl] = useState("");
+  const [prefillFiles, setPrefillFiles] = useState<File[]>([]);
+  const [prefillSummary, setPrefillSummary] = useState("");
+  const [prefillSources, setPrefillSources] = useState<string[]>([]);
+  const [prefillError, setPrefillError] = useState<string | null>(null);
+
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const conversationIdRef = useRef<string>(gerarConversationId());
