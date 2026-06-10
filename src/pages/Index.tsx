@@ -511,7 +511,7 @@ const Index = () => {
         <MessageSquare className="w-5 h-5" />
       </button>
 
-      <DiagnosticoChat open={chatOpen} onClose={() => setChatOpen(false)} />
+      <DiagnosticoChat open={chatOpen} onClose={() => setChatOpen(false)} promptId={promptId} />
     </div>
   );
 };
