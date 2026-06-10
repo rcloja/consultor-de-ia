@@ -1141,3 +1141,206 @@ const BasePreview = ({ base, lacunas }: { base: Record<string, string[]>; lacuna
     </div>
   </div>
 );
+
+interface PrefillPanelProps {
+  url: string;
+  onUrlChange: (v: string) => void;
+  files: File[];
+  onFiles: (files: FileList | null) => void;
+  onRemoveFile: (name: string) => void;
+  onSubmit: () => void;
+  onSkip: () => void;
+  processing: boolean;
+  error: string | null;
+}
+
+const PrefillPanel = ({
+  url,
+  onUrlChange,
+  files,
+  onFiles,
+  onRemoveFile,
+  onSubmit,
+  onSkip,
+  processing,
+  error,
+}: PrefillPanelProps) => {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  return (
+    <div className="bg-card border border-primary/20 rounded-2xl p-4 shadow-card animate-fade-up">
+      <div className="flex items-center gap-2 mb-3">
+        <div className="w-8 h-8 rounded-xl gradient-hero flex items-center justify-center">
+          <Sparkles className="w-4 h-4 text-white" />
+        </div>
+        <div>
+          <div className="font-display font-semibold text-sm">Acelerar com material existente</div>
+          <div className="text-xs text-muted-foreground">Site e/ou arquivos (PDF, DOCX, MD, TXT)</div>
+        </div>
+      </div>
+
+      <label className="text-xs font-medium text-foreground mb-1.5 flex items-center gap-1.5">
+        <Globe className="w-3.5 h-3.5" /> Site da empresa (opcional)
+      </label>
+      <input
+        type="url"
+        value={url}
+        onChange={(e) => onUrlChange(e.target.value)}
+        placeholder="https://suaempresa.com.br"
+        disabled={processing}
+        className="w-full px-3 py-2 bg-secondary rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary/30 transition disabled:opacity-60 mb-3"
+      />
+
+      <div className="text-xs font-medium text-foreground mb-1.5 flex items-center gap-1.5">
+        <Upload className="w-3.5 h-3.5" /> Anexar arquivos (opcional)
+      </div>
+      <input
+        ref={fileInputRef}
+        type="file"
+        multiple
+        accept=".pdf,.docx,.md,.txt,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/markdown,text/plain"
+        onChange={(e) => onFiles(e.target.files)}
+        disabled={processing}
+        className="hidden"
+      />
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        disabled={processing}
+        onClick={() => fileInputRef.current?.click()}
+        className="rounded-xl h-9 text-xs w-full"
+      >
+        <Upload className="w-3.5 h-3.5 mr-1.5" /> Selecionar arquivos
+      </Button>
+
+      {files.length > 0 && (
+        <ul className="mt-2 space-y-1">
+          {files.map((f) => (
+            <li
+              key={f.name}
+              className="flex items-center justify-between text-xs bg-secondary/60 rounded-lg px-2.5 py-1.5"
+            >
+              <span className="truncate flex items-center gap-1.5">
+                <FileText className="w-3 h-3 text-muted-foreground shrink-0" />
+                {f.name}
+              </span>
+              <button
+                type="button"
+                onClick={() => onRemoveFile(f.name)}
+                disabled={processing}
+                className="text-muted-foreground hover:text-destructive transition"
+                aria-label={`Remover ${f.name}`}
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {error && (
+        <div className="mt-3 text-xs text-destructive bg-destructive/5 border border-destructive/20 rounded-lg p-2.5 flex items-start gap-1.5">
+          <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+          <span>{error}</span>
+        </div>
+      )}
+
+      <div className="flex gap-2 mt-4">
+        <Button onClick={onSubmit} disabled={processing} className="flex-1 rounded-xl h-10 text-xs">
+          {processing ? (
+            <>
+              <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> Lendo material...
+            </>
+          ) : (
+            <>
+              <Sparkles className="w-3.5 h-3.5 mr-1.5" /> Pré-preencher
+            </>
+          )}
+        </Button>
+        <Button
+          onClick={onSkip}
+          disabled={processing}
+          variant="outline"
+          className="rounded-xl h-10 text-xs"
+        >
+          <SkipForward className="w-3.5 h-3.5 mr-1.5" /> Pular
+        </Button>
+      </div>
+    </div>
+  );
+};
+
+interface PrefillReviewProps {
+  summary: string;
+  sources: string[];
+  base: Record<string, string[]>;
+  onConfirm: () => void;
+}
+
+const PrefillReview = ({ summary, sources, base, onConfirm }: PrefillReviewProps) => {
+  const preenchidos = SECOES_FINAIS.filter((s) => (base[s]?.length ?? 0) > 0);
+  return (
+    <div className="bg-card border border-accent/30 rounded-2xl p-4 shadow-card animate-fade-up space-y-3">
+      <div className="flex items-center gap-2">
+        <div className="w-8 h-8 rounded-xl bg-accent/15 flex items-center justify-center">
+          <CheckCircle2 className="w-4 h-4 text-accent" />
+        </div>
+        <div>
+          <div className="font-display font-semibold text-sm">O que foi lido e considerado relevante</div>
+          <div className="text-xs text-muted-foreground">
+            {sources.length} fonte(s) · {preenchidos.length} seção(ões) pré-preenchida(s)
+          </div>
+        </div>
+      </div>
+
+      {sources.length > 0 && (
+        <div>
+          <div className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold mb-1">Fontes</div>
+          <ul className="space-y-0.5">
+            {sources.map((s) => (
+              <li key={s} className="text-xs text-muted-foreground truncate">• {s}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {summary && (
+        <div>
+          <div className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold mb-1">
+            Resumo do material
+          </div>
+          <pre className="text-xs text-foreground whitespace-pre-wrap font-sans leading-relaxed bg-secondary/40 rounded-lg p-2.5">
+            {summary}
+          </pre>
+        </div>
+      )}
+
+      {preenchidos.length > 0 && (
+        <div>
+          <div className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold mb-1">
+            Seções pré-preenchidas
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {preenchidos.map((s) => (
+              <span
+                key={s}
+                className="text-[11px] px-2 py-0.5 rounded-md bg-accent/10 text-accent border border-accent/20"
+              >
+                {s}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="pt-1 flex flex-col sm:flex-row gap-2">
+        <Button onClick={onConfirm} className="flex-1 rounded-xl h-10 text-xs">
+          <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" /> Está certo, prosseguir para as lacunas
+        </Button>
+      </div>
+      <p className="text-[11px] text-muted-foreground">
+        Quer ajustar algo antes? Descreva no campo de mensagem abaixo (ex.: "remover serviço X", "público-alvo correto é Y"). Suas notas serão registradas.
+      </p>
+    </div>
+  );
+};
