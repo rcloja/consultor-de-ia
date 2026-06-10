@@ -57,8 +57,8 @@ export async function extractTextFromFile(file: File): Promise<string> {
     for (let i = 1; i <= maxPages; i++) {
       const page = await doc.getPage(i);
       const content = await page.getTextContent();
-      const strs = content.items
-        .map((it: { str?: string }) => (typeof it.str === "string" ? it.str : ""))
+      const strs = (content.items as Array<{ str?: string }>)
+        .map((it) => (typeof it.str === "string" ? it.str : ""))
         .filter(Boolean);
       out += strs.join(" ") + "\n\n";
     }
