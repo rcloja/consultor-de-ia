@@ -262,6 +262,140 @@ export const DiagnosticoChat = ({ open, onClose, promptId }: Props) => {
     }, 900);
   };
 
+  const iniciarModoCriacao = (resetMensagens = true) => {
+    setCarregandoBase(false);
+    setForcarCriacao(true);
+    setStep(0);
+    setBase({});
+    setLacunas([]);
+    setShowBase(false);
+    setNotasAjuste([]);
+    setFinalizado(false);
+    if (resetMensagens) setMessages([]);
+    setTyping(true);
+    setTimeout(() => {
+      setMessages((m) => [
+        ...m,
+        {
+          role: "system",
+          tone: "info",
+          text: "Modo criação ativado. Vamos construir uma nova Base de Conhecimento do zero.",
+        },
+        { role: "agent", text: OPENING },
+      ]);
+      setTyping(false);
+      setTimeout(() => fazerPergunta(0), 600);
+    }, 400);
+  };
+
+  const iniciarModoAtualizacao = async (mostrarSaudacao = true) => {
+    if (!promptId) return;
+    setCarregandoBase(true);
+    setTyping(true);
+    if (mostrarSaudacao) {
+      setMessages([
+        {
+          role: "agent",
+          text: `Olá novamente! Localizei o identificador da sua Base de Conhecimento (ID: ${promptId}). Vou carregar as informações já cadastradas para revisarmos juntos.`,
+        },
+      ]);
+    } else {
+      setMessages((m) => [
+        ...m,
+        { role: "system", tone: "info", text: "Tentando carregar novamente a base existente..." },
+      ]);
+    }
+
+    const resultado = await carregarBaseExistente(promptId);
+    setCarregandoBase(false);
+    setTyping(false);
+
+    if (resultado.status === "ok") {
+      setBase(resultado.base);
+      setLacunas(resultado.lacunas);
+      setShowBase(true);
+      setMessages((m) => [
+        ...m,
+        { role: "system", tone: "save", text: "Base de Conhecimento carregada com sucesso." },
+        {
+          role: "agent",
+          text:
+            'Revise abaixo o que já está cadastrado. Me diga, em mensagens, o que deseja atualizar (ex.: "Atualizar política de reembolso para 7 dias" ou "Adicionar novo diferencial: atendimento 24h"). Quando terminar, clique em "Concluir atualização" e eu envio tudo de volta.',
+        },
+      ]);
+      inputRef.current?.focus();
+      return;
+    }
+
+    if (resultado.status === "notfound") {
+      setMessages((m) => [
+        ...m,
+        {
+          role: "system",
+          tone: "error",
+          title: "ID não encontrado",
+          text: `O servidor não localizou nenhuma base com o ID "${promptId}". Verifique se digitou corretamente, tente novamente ou inicie uma nova base no modo criação.`,
+          actions: [
+            { label: "Tentar novamente", kind: "retry" },
+            { label: "Iniciar nova base (modo criação)", kind: "create" },
+          ],
+        },
+      ]);
+      return;
+    }
+
+    if (resultado.status === "http") {
+      setMessages((m) => [
+        ...m,
+        {
+          role: "system",
+          tone: "error",
+          title: `Erro do servidor (HTTP ${resultado.code})`,
+          text: "O servidor respondeu com erro ao tentar carregar a base. Você pode tentar novamente em alguns instantes ou seguir em modo criação.",
+          actions: [
+            { label: "Tentar novamente", kind: "retry" },
+            { label: "Continuar em modo criação", kind: "create" },
+          ],
+        },
+      ]);
+      return;
+    }
+
+    if (resultado.status === "parse") {
+      setMessages((m) => [
+        ...m,
+        {
+          role: "system",
+          tone: "error",
+          title: "Resposta inválida do servidor",
+          text: `Não consegui interpretar os dados recebidos (${resultado.detail}). Tente novamente ou siga em modo criação.`,
+          actions: [
+            { label: "Tentar novamente", kind: "retry" },
+            { label: "Continuar em modo criação", kind: "create" },
+          ],
+        },
+      ]);
+      return;
+    }
+
+    // status === "cors" (ou falha de rede equivalente)
+    setMessages((m) => [
+      ...m,
+      {
+        role: "system",
+        tone: "error",
+        title: "Não foi possível carregar sua base (bloqueio de CORS ou falha de rede)",
+        text:
+          "O navegador impediu a leitura da resposta do servidor admin.atendenteai.com.br. Isso normalmente acontece quando o servidor não envia o cabeçalho Access-Control-Allow-Origin para esta página. " +
+          "Verifique sua conexão e tente novamente. Se o problema persistir, é necessário liberar CORS no servidor (ou usar um proxy/backend intermediário). Enquanto isso, você pode continuar em modo criação e construir uma nova base do zero.",
+        actions: [
+          { label: "Tentar novamente", kind: "retry" },
+          { label: "Continuar em modo criação", kind: "create" },
+        ],
+      },
+    ]);
+  };
+
   useEffect(() => {
     if (!open) return;
     setMessages([]);
@@ -271,51 +405,10 @@ export const DiagnosticoChat = ({ open, onClose, promptId }: Props) => {
     setFinalizado(false);
     setShowBase(false);
     setNotasAjuste([]);
+    setForcarCriacao(false);
 
-    if (modoAtualizacao && promptId) {
-      // MODO ATUALIZAÇÃO
-      setCarregandoBase(true);
-      setTyping(true);
-      setMessages([
-        {
-          role: "agent",
-          text: `Olá novamente! Localizei o identificador da sua Base de Conhecimento (ID: ${promptId}). Vou carregar as informações já cadastradas para revisarmos juntos.`,
-        },
-      ]);
-      (async () => {
-        const resultado = await carregarBaseExistente(promptId);
-        setCarregandoBase(false);
-        setTyping(false);
-        if (!resultado) {
-          setMessages((m) => [
-            ...m,
-            {
-              role: "system",
-              tone: "gap",
-              text: "Não foi possível carregar a base existente (verifique o ID ou a liberação de CORS no servidor). Você pode digitar abaixo o que deseja ajustar — registrarei como notas de atualização.",
-            },
-          ]);
-          setShowBase(true);
-          return;
-        }
-        setBase(resultado.base);
-        setLacunas(resultado.lacunas);
-        setShowBase(true);
-        setMessages((m) => [
-          ...m,
-          {
-            role: "system",
-            tone: "save",
-            text: "Base de Conhecimento carregada com sucesso.",
-          },
-          {
-            role: "agent",
-            text:
-              "Revise abaixo o que já está cadastrado. Me diga, em mensagens, o que deseja atualizar (ex.: \"Atualizar política de reembolso para 7 dias\" ou \"Adicionar novo diferencial: atendimento 24h\"). Quando terminar, clique em \"Concluir atualização\" e eu envio tudo de volta.",
-          },
-        ]);
-        inputRef.current?.focus();
-      })();
+    if (idValido && promptId) {
+      iniciarModoAtualizacao(true);
       return;
     }
 
