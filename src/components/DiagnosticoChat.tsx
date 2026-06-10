@@ -611,6 +611,7 @@ export const DiagnosticoChat = ({ open, onClose, promptId }: Props) => {
             body: payload,
           }).catch(() => { /* noop */ });
         }
+        setUltimoSalvamento(new Date());
       } catch (e) {
         console.error("Falha no auto-save:", e);
       }
