@@ -3,10 +3,14 @@ import { Bot, Send, X, Sparkles, CheckCircle2, AlertCircle, FileText, RefreshCw,
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 
+type MessageAction = { label: string; kind: "retry" | "create" };
+
 interface Message {
   role: "agent" | "user" | "system";
   text: string;
-  tone?: "save" | "gap" | "info";
+  tone?: "save" | "gap" | "info" | "error";
+  title?: string;
+  actions?: MessageAction[];
 }
 
 interface Pergunta {
