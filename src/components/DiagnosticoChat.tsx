@@ -569,6 +569,42 @@ export const DiagnosticoChat = ({ open, onClose, promptId }: Props) => {
           <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-3 bg-gradient-to-b from-background to-secondary/30">
             {messages.map((m, i) => {
               if (m.role === "system") {
+                if (m.tone === "error") {
+                  return (
+                    <div key={i} className="flex justify-center animate-fade-up">
+                      <div className="w-full max-w-[95%] rounded-2xl border border-destructive/30 bg-destructive/5 p-4 text-left">
+                        <div className="flex items-start gap-2 mb-1.5">
+                          <AlertCircle className="w-4 h-4 text-destructive shrink-0 mt-0.5" />
+                          <div className="text-sm font-semibold text-destructive">
+                            {m.title ?? "Não foi possível carregar a base"}
+                          </div>
+                        </div>
+                        <div className="text-xs text-destructive/90 leading-relaxed pl-6 whitespace-pre-line">
+                          {m.text}
+                        </div>
+                        {m.actions && m.actions.length > 0 && (
+                          <div className="flex flex-wrap gap-2 mt-3 pl-6">
+                            {m.actions.map((a, j) => (
+                              <Button
+                                key={j}
+                                size="sm"
+                                variant={a.kind === "retry" ? "default" : "outline"}
+                                onClick={() =>
+                                  a.kind === "retry" ? iniciarModoAtualizacao(false) : iniciarModoCriacao(false)
+                                }
+                                disabled={carregandoBase}
+                                className="rounded-xl h-8 text-xs"
+                              >
+                                {a.kind === "retry" ? <RefreshCw className="w-3 h-3 mr-1.5" /> : null}
+                                {a.label}
+                              </Button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                }
                 const isGap = m.tone === "gap";
                 return (
                   <div key={i} className="flex justify-center animate-fade-up">
