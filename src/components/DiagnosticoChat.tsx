@@ -578,10 +578,14 @@ const OPCOES_GENERICAS_NEGOCIO = [
   "Outro (descreva em uma frase)",
 ];
 
+export type ValidacaoResposta =
+  | { ok: true; motivo?: undefined; exemplos?: undefined }
+  | { ok: false; motivo: string; exemplos: string[] };
+
 function validarRespostaUsuario(
   texto: string,
   pergunta: Pergunta,
-): { ok: true } | { ok: false; motivo: string; exemplos: string[] } {
+): ValidacaoResposta {
   const t = texto.trim();
   const exemplos = EXEMPLOS_POR_CAMPO[pergunta.campo] ?? [];
   if (!t) return { ok: false, motivo: "A resposta está vazia.", exemplos };
