@@ -1580,6 +1580,47 @@ export const DiagnosticoChat = ({ open, onClose, promptId, tokenMode = false }: 
   const handleSendUpdate = () => {
     const text = input.trim();
     if (!text || finalizado) return;
+
+    // ---------- VALIDAÇÃO OBRIGATÓRIA NO MODO ATUALIZAÇÃO ----------
+    // Rejeita ajustes vagos como "mudar tudo", "atualizar", "trocar nome",
+    // até 2 vezes. Na 3ª, aceita para não travar o usuário.
+    if (tentativasUpdRef.current < 2) {
+      const v = validarAjusteUsuario(text);
+      if (!v.ok) {
+        const motivoInv = v.motivo;
+        const exemplosInv = v.exemplos;
+        tentativasUpdRef.current += 1;
+        setMessages((m) => [...m, { role: "user", text }]);
+        setInput("");
+        const ofereceOpcoes = tentativasUpdRef.current >= 2;
+        const exemplosTxt = exemplosInv.length
+          ? "\n\nExemplos de ajustes válidos:\n" +
+            exemplosInv.map((e) => `• ${e}`).join("\n")
+          : "";
+        const opcoesTxt = ofereceOpcoes
+          ? "\n\nSe preferir, escolha uma área para alterar e descreva o **novo valor**:\n" +
+            CAMPOS_BASE.map((c, i) => `${i + 1}. ${c}`).join("\n")
+          : "";
+        setTimeout(() => {
+          setMessages((m) => [
+            ...m,
+            {
+              role: "system",
+              tone: "gap",
+              title: "Preciso de mais detalhes para aplicar a alteração",
+              text:
+                `${motivoInv} Para atualizar o prompt corretamente preciso saber **o que** alterar e **qual o novo conteúdo**.` +
+                exemplosTxt +
+                opcoesTxt,
+            },
+          ]);
+        }, 300);
+        return;
+      }
+    }
+    // Aceita — zera contador para próximo ajuste
+    tentativasUpdRef.current = 0;
+
     setMessages((m) => [...m, { role: "user", text }]);
     setInput("");
     const novasNotas = [...notasAjuste, text];
