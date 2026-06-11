@@ -14,6 +14,66 @@ export type Database = {
   }
   public: {
     Tables: {
+      agent_compliance_reviews: {
+        Row: {
+          agent_id: string | null
+          conversation_id: string | null
+          created_at: string
+          decision: Database["public"]["Enums"]["compliance_decision"]
+          detected_categories: string[]
+          human_notes: string | null
+          human_reviewer_id: string | null
+          id: string
+          justification: string | null
+          payload: Json | null
+          review_status: Database["public"]["Enums"]["compliance_review_status"]
+          risk_level: Database["public"]["Enums"]["compliance_risk_level"]
+          suspicious_excerpt: string | null
+          tenant_id: string | null
+          trigger_event: string | null
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          agent_id?: string | null
+          conversation_id?: string | null
+          created_at?: string
+          decision: Database["public"]["Enums"]["compliance_decision"]
+          detected_categories?: string[]
+          human_notes?: string | null
+          human_reviewer_id?: string | null
+          id?: string
+          justification?: string | null
+          payload?: Json | null
+          review_status?: Database["public"]["Enums"]["compliance_review_status"]
+          risk_level: Database["public"]["Enums"]["compliance_risk_level"]
+          suspicious_excerpt?: string | null
+          tenant_id?: string | null
+          trigger_event?: string | null
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          agent_id?: string | null
+          conversation_id?: string | null
+          created_at?: string
+          decision?: Database["public"]["Enums"]["compliance_decision"]
+          detected_categories?: string[]
+          human_notes?: string | null
+          human_reviewer_id?: string | null
+          id?: string
+          justification?: string | null
+          payload?: Json | null
+          review_status?: Database["public"]["Enums"]["compliance_review_status"]
+          risk_level?: Database["public"]["Enums"]["compliance_risk_level"]
+          suspicious_excerpt?: string | null
+          tenant_id?: string | null
+          trigger_event?: string | null
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       implantador_logs: {
         Row: {
           agent_id: string | null
@@ -61,7 +121,13 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      compliance_decision: "liberado" | "revisao_humana" | "bloqueado"
+      compliance_review_status:
+        | "pendente"
+        | "aprovado"
+        | "reprovado"
+        | "ajustes_solicitados"
+      compliance_risk_level: "baixo" | "medio" | "alto" | "critico"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -188,6 +254,15 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      compliance_decision: ["liberado", "revisao_humana", "bloqueado"],
+      compliance_review_status: [
+        "pendente",
+        "aprovado",
+        "reprovado",
+        "ajustes_solicitados",
+      ],
+      compliance_risk_level: ["baixo", "medio", "alto", "critico"],
+    },
   },
 } as const

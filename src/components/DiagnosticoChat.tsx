@@ -4,6 +4,12 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { chamarImplantadorAi, type ImplantadorChatHistoryItem } from "@/lib/implantadorAi";
 import { chamarPrefill, extractTextFromFile, type PrefillDoc } from "@/lib/prefill";
+import {
+  runComplianceCheck,
+  MSG_REVISAO_HUMANA,
+  MSG_BLOQUEIO_CRITICO,
+  type ComplianceCheckResult,
+} from "@/lib/compliance";
 
 const AGENT_ID = "arquiteto-conhecimento-ia";
 
@@ -528,12 +534,78 @@ export const DiagnosticoChat = ({ open, onClose, promptId }: Props) => {
     }, 900);
   };
 
-  const finalizarCriacaoCompleta = (
+  const finalizarCriacaoCompleta = async (
     baseFinal: Record<string, string[]>,
     lacunasFinal: string[],
   ) => {
     if (enviadoFinalRef.current) return;
     enviadoFinalRef.current = true;
+
+    // 1) Compliance check obrigatório antes do envio
+    setMessages((m) => [
+      ...m,
+      { role: "system", tone: "info", text: "Verificando políticas de uso (compliance)…" },
+    ]);
+
+    let compliance: ComplianceCheckResult | null = null;
+    try {
+      compliance = await runComplianceCheck({
+        tenant_id: getAgenteExterno(),
+        agent_id: getAgenteExterno(),
+        user_id: null,
+        conversation_id: conversationIdRef.current,
+        trigger_event: "criacao_finalizada",
+        payload: {
+          nome_negocio: (baseFinal["Empresa"] ?? []).join(" | "),
+          descricao_empresa: (baseFinal["Empresa"] ?? []).join("\n"),
+          base: baseFinal,
+          produtos_servicos: (baseFinal["Produtos e serviços"] ?? []).join("\n"),
+          mensagens_automaticas: (baseFinal["Processo comercial"] ?? []).join("\n"),
+          urls: prefillUrl ? [prefillUrl] : [],
+          termos_comerciais: (baseFinal["Políticas e regras"] ?? []).join("\n"),
+        },
+      });
+    } catch (e) {
+      console.error("Falha compliance:", e);
+      setMessages((m) => [
+        ...m,
+        {
+          role: "system",
+          tone: "error",
+          title: "Não foi possível verificar compliance",
+          text: "A verificação obrigatória falhou. Tente novamente em instantes — o envio só ocorre após a aprovação.",
+        },
+      ]);
+      enviadoFinalRef.current = false;
+      return;
+    }
+
+    if (compliance.decision === "bloqueado") {
+      setMessages((m) => [
+        ...m,
+        {
+          role: "system",
+          tone: "error",
+          title: `Implantação bloqueada (risco ${compliance.risk_level.toUpperCase()})`,
+          text: MSG_BLOQUEIO_CRITICO,
+        },
+      ]);
+      return;
+    }
+    if (compliance.decision === "revisao_humana") {
+      setMessages((m) => [
+        ...m,
+        {
+          role: "system",
+          tone: "gap",
+          title: `Aguardando revisão humana (risco ${compliance.risk_level.toUpperCase()})`,
+          text: MSG_REVISAO_HUMANA,
+        },
+      ]);
+      return;
+    }
+
+    // 2) Liberado — envia ao servidor
     void enviarBaseFinalCriacao(
       conversationIdRef.current,
       baseFinal,
@@ -550,7 +622,7 @@ export const DiagnosticoChat = ({ open, onClose, promptId }: Props) => {
         {
           role: "system",
           tone: "save",
-          text: "Base de Conhecimento enviada ao servidor com sucesso.",
+          text: "Base de Conhecimento aprovada em compliance e enviada ao servidor com sucesso.",
         },
       ]);
     });
@@ -742,7 +814,7 @@ export const DiagnosticoChat = ({ open, onClose, promptId }: Props) => {
       ]);
       setFinalizado(true);
       setShowBase(true);
-      finalizarCriacaoCompleta(baseAtual, lacunas);
+      void finalizarCriacaoCompleta(baseAtual, lacunas);
       return;
     }
     setMessages((m) => [
@@ -1144,6 +1216,60 @@ export const DiagnosticoChat = ({ open, onClose, promptId }: Props) => {
   const handleConcluirUpdate = async () => {
     if (!promptId) return;
     setEnviandoUpdate(true);
+
+    // Compliance check obrigatório também na atualização
+    setMessages((m) => [
+      ...m,
+      { role: "system", tone: "info", text: "Verificando políticas de uso (compliance)…" },
+    ]);
+    let compliance: ComplianceCheckResult | null = null;
+    try {
+      compliance = await runComplianceCheck({
+        tenant_id: getAgenteExterno(),
+        agent_id: promptId,
+        conversation_id: conversationIdRef.current,
+        trigger_event: "atualizacao_finalizada",
+        payload: {
+          base,
+          mensagens_automaticas: notasAjuste.join("\n"),
+          produtos_servicos: (base["Produtos e serviços"] ?? []).join("\n"),
+        },
+      });
+    } catch (e) {
+      console.error("Falha compliance update:", e);
+      setEnviandoUpdate(false);
+      setMessages((m) => [
+        ...m,
+        {
+          role: "system",
+          tone: "error",
+          title: "Não foi possível verificar compliance",
+          text: "A verificação obrigatória falhou. Tente novamente — o envio só ocorre após a aprovação.",
+        },
+      ]);
+      return;
+    }
+
+    if (compliance.decision !== "liberado") {
+      setEnviandoUpdate(false);
+      setMessages((m) => [
+        ...m,
+        {
+          role: "system",
+          tone: compliance.decision === "bloqueado" ? "error" : "gap",
+          title:
+            compliance.decision === "bloqueado"
+              ? `Atualização bloqueada (risco ${compliance.risk_level.toUpperCase()})`
+              : `Aguardando revisão humana (risco ${compliance.risk_level.toUpperCase()})`,
+          text:
+            compliance.decision === "bloqueado"
+              ? MSG_BLOQUEIO_CRITICO
+              : MSG_REVISAO_HUMANA,
+        },
+      ]);
+      return;
+    }
+
     await enviarBaseAtualizada(promptId, base, lacunas, notasAjuste);
     setEnviandoUpdate(false);
     setFinalizado(true);
@@ -1152,7 +1278,7 @@ export const DiagnosticoChat = ({ open, onClose, promptId }: Props) => {
       {
         role: "agent",
         text:
-          "Pronto! As alterações foram enviadas para o servidor com o seu identificador. Sua Base de Conhecimento foi atualizada com sucesso.",
+          "Pronto! As alterações foram aprovadas em compliance e enviadas para o servidor. Sua Base de Conhecimento foi atualizada com sucesso.",
       },
     ]);
   };
@@ -1248,7 +1374,7 @@ export const DiagnosticoChat = ({ open, onClose, promptId }: Props) => {
           ]);
           setFinalizado(true);
           setShowBase(true);
-          finalizarCriacaoCompleta(baseAposResposta, lacunas);
+          void finalizarCriacaoCompleta(baseAposResposta, lacunas);
         }, 900);
       } else {
         setTimeout(() => fazerPergunta(proxIdx), temLacuna ? 1400 : 700);
