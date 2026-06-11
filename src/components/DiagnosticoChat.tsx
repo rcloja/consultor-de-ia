@@ -1702,14 +1702,16 @@ export const DiagnosticoChat = ({ open, onClose, promptId, tokenMode = false }: 
       if (tentativasPrevias < 2) {
         const v = validarRespostaUsuario(text, pAtual);
         if (!v.ok) {
+          const motivoInv = v.motivo;
+          const exemplosInv = v.exemplos;
           tentativasInvRef.current[step] = tentativasPrevias + 1;
           setMessages((m) => [...m, { role: "user", text }]);
           setInput("");
           const proximaTentativa = tentativasPrevias + 1;
           const ofereceOpcoes = proximaTentativa >= 2;
-          const exemplosTxt = v.exemplos.length
+          const exemplosTxt = exemplosInv.length
             ? "\n\nExemplos válidos para esta pergunta:\n" +
-              v.exemplos.map((e) => `• ${e}`).join("\n")
+              exemplosInv.map((e) => `• ${e}`).join("\n")
             : "";
           const opcoesTxt = ofereceOpcoes
             ? "\n\nNão consegui identificar claramente. Selecione a opção mais próxima do seu negócio (ou descreva em uma frase completa):\n" +
@@ -1723,7 +1725,7 @@ export const DiagnosticoChat = ({ open, onClose, promptId, tokenMode = false }: 
                 tone: "gap",
                 title: "Preciso de mais detalhes",
                 text:
-                  `${v.motivo} Para configurar corretamente o seu agente, preciso de uma resposta específica e suficiente.` +
+                  `${motivoInv} Para configurar corretamente o seu agente, preciso de uma resposta específica e suficiente.` +
                   exemplosTxt +
                   opcoesTxt +
                   `\n\n**Pergunta:** ${pAtual.texto}`,
@@ -1732,6 +1734,7 @@ export const DiagnosticoChat = ({ open, onClose, promptId, tokenMode = false }: 
           }, 300);
           return;
         }
+
       }
       // Aceita após 2 tentativas inválidas — zera o contador para próxima pergunta
       tentativasInvRef.current[step] = 0;
