@@ -1450,7 +1450,14 @@ export const DiagnosticoChat = ({ open, onClose, promptId, tokenMode = false }: 
       return;
     }
 
-    const resultadoUpd = await enviarBaseAtualizada(promptId, base, lacunas, notasAjuste);
+    const promptPersonaAtualizado = gerarPromptPersona(base, notasAjuste);
+    const resultadoUpd = await enviarBaseAtualizada(
+      promptId,
+      base,
+      lacunas,
+      notasAjuste,
+      promptPersonaAtualizado,
+    );
     setEnviandoUpdate(false);
     if (!resultadoUpd.ok) {
       setMessages((m) => [
@@ -1476,7 +1483,11 @@ export const DiagnosticoChat = ({ open, onClose, promptId, tokenMode = false }: 
       {
         role: "agent",
         text:
-          "Pronto! As alterações foram aprovadas em compliance e enviadas para o servidor. Sua Base de Conhecimento foi atualizada com sucesso.",
+          "Pronto! As alterações foram aprovadas em compliance e enviadas para o servidor. Sua Base de Conhecimento foi atualizada com sucesso.\n\n" +
+          "Abaixo está o **PROMPT atualizado da persona do agente** que foi enviado ao servidor:\n\n" +
+          "```markdown\n" +
+          promptPersonaAtualizado +
+          "\n```",
       },
     ]);
   };
