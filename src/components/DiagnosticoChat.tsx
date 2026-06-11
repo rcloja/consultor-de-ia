@@ -492,6 +492,7 @@ export const DiagnosticoChat = ({ open, onClose, promptId }: Props) => {
   };
 
   const modoAtualizacao = idValido && !forcarCriacao;
+  const agenteExterno = getAgenteExterno();
 
   const etapaIdxAtual = Math.min(step, TOTAL - 1);
   const etapaAtual = modoAtualizacao
