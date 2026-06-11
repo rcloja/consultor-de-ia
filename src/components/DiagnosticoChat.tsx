@@ -1505,32 +1505,13 @@ export const DiagnosticoChat = ({ open, onClose, promptId }: Props) => {
             <div className="flex items-center gap-1">
               {!modoAtualizacao && (
                 <>
-                  <input
-                    ref={importInputRef}
-                    type="file"
-                    accept=".txt,text/plain"
-                    className="hidden"
-                    onChange={(e) => {
-                      const f = e.target.files?.[0];
-                      if (f) void handleImportarProgresso(f);
-                      if (importInputRef.current) importInputRef.current.value = "";
-                    }}
-                  />
-                  <button
-                    onClick={() => importInputRef.current?.click()}
-                    className="p-2 rounded-xl hover:bg-secondary transition text-muted-foreground"
-                    aria-label="Importar progresso"
-                    title="Importar progresso (.txt)"
-                  >
-                    <Upload className="w-3.5 h-3.5" />
-                  </button>
                   {(messages.length > 0 || Object.keys(base).length > 0) && (
                     <button
                       onClick={handleSalvarProgresso}
                       disabled={salvandoParcial}
                       className="px-2.5 py-1.5 rounded-xl hover:bg-secondary transition text-xs flex items-center gap-1 text-muted-foreground disabled:opacity-50"
                       aria-label="Salvar progresso"
-                      title="Salvar progresso (envia e baixa .txt)"
+                      title="Salvar progresso (envia ao servidor)"
                     >
                       {salvandoParcial ? (
                         <Loader2 className="w-3.5 h-3.5 animate-spin" />
