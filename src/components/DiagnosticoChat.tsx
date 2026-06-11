@@ -689,9 +689,32 @@ function validarAjusteUsuario(texto: string): ValidacaoResposta {
 
 
 // ---------- Geração do PROMPT organizado da persona ----------
+// Defaults genéricos e neutros para seções estilísticas/operacionais quando
+// o usuário não definiu nada. NÃO se aplica a seções factuais (Empresa,
+// Produtos, Serviços, FAQ etc.), que continuam sendo omitidas se vazias.
+const DEFAULTS_GENERICOS: Record<string, string[]> = {
+  "Termos do Segmento": [
+    "Tom de voz formal, amigável e cordial, adaptado ao contexto do cliente.",
+  ],
+  "Regras do Agente": [
+    "Ser cordial, objetivo e transparente em todas as interações.",
+    "Não prometer prazos, valores ou condições que não estejam confirmados na base.",
+    "Encaminhar para atendimento humano sempre que a solicitação fugir do escopo.",
+  ],
+  "Fluxo de Atendimento": [
+    "Saudar o cliente, identificar a necessidade, oferecer a melhor solução disponível e confirmar próximos passos.",
+  ],
+  "Políticas": [
+    "Respeitar a privacidade do cliente e nunca compartilhar dados sensíveis sem autorização.",
+  ],
+};
+
 function gerarPromptPersona(
   base: Record<string, string[]>,
-  notasAjuste: string[] = [],
+  // notasAjuste mantido por compatibilidade de assinatura; NÃO é mais
+  // anexado ao prompt — a cada alteração o prompt é regerado do zero a
+  // partir da base atualizada, sem bloco de "Ajustes Recentes".
+  _notasAjuste: string[] = [],
 ): string {
   const nome = derivarNomeAgente(base);
   const get = (k: string) =>
@@ -722,7 +745,11 @@ function gerarPromptPersona(
     ["Regras do Agente", "Regras de Conduta do Agente"],
   ];
   for (const [chave, titulo] of ordem) {
-    const b = bloco(titulo, get(chave));
+    let itens = get(chave);
+    if (itens.length === 0 && DEFAULTS_GENERICOS[chave]) {
+      itens = DEFAULTS_GENERICOS[chave];
+    }
+    const b = bloco(titulo, itens);
     if (b) secoes.push(b);
   }
   // Inclui quaisquer chaves extras que venham da base (servidor/atualização)
@@ -744,11 +771,6 @@ function gerarPromptPersona(
       `- Encaminhar para atendimento humano quando a solicitação fugir do escopo.\n` +
       `- Confirmar dados sensíveis antes de registrar pedidos ou alterações.`,
   );
-
-  const notas = notasAjuste.map((n) => n.trim()).filter(Boolean);
-  if (notas.length) {
-    secoes.push(bloco("Ajustes Recentes (prioritários)", notas));
-  }
 
   return secoes.filter(Boolean).join("\n\n");
 }
