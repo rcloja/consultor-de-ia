@@ -1715,11 +1715,7 @@ export const DiagnosticoChat = ({ open, onClose, promptId, tokenMode = false }: 
       {
         role: "agent",
         text:
-          "Pronto! As alterações foram aprovadas em compliance e enviadas para o servidor. Sua Base de Conhecimento foi atualizada com sucesso.\n\n" +
-          "Abaixo está o **PROMPT atualizado da persona do agente** que foi enviado ao servidor:\n\n" +
-          "```markdown\n" +
-          promptPersonaAtualizado +
-          "\n```",
+          "Pronto! As alterações foram aprovadas em compliance e enviadas para o servidor. Sua Base de Conhecimento foi atualizada com sucesso.",
       },
     ]);
   };
