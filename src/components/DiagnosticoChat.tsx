@@ -1341,8 +1341,26 @@ export const DiagnosticoChat = ({ open, onClose, promptId }: Props) => {
       return;
     }
 
-    await enviarBaseAtualizada(promptId, base, lacunas, notasAjuste);
+    const resultadoUpd = await enviarBaseAtualizada(promptId, base, lacunas, notasAjuste);
     setEnviandoUpdate(false);
+    if (!resultadoUpd.ok) {
+      setMessages((m) => [
+        ...m,
+        {
+          role: "system",
+          tone: "error",
+          title:
+            resultadoUpd.etapa === "validacao"
+              ? "Atualização bloqueada — dados inválidos"
+              : resultadoUpd.etapa === "rede"
+                ? "Falha de comunicação com o servidor"
+                : "Resposta inválida do servidor",
+          text: resultadoUpd.motivo ?? "Não foi possível atualizar a Base de Conhecimento.",
+          actions: [{ label: "Tentar novamente", kind: "retry" }],
+        },
+      ]);
+      return;
+    }
     setFinalizado(true);
     setMessages((m) => [
       ...m,
