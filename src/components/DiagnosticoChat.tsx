@@ -1006,7 +1006,9 @@ export const DiagnosticoChat = ({ open, onClose, promptId, tokenMode = false }: 
       setMessages([
         {
           role: "agent",
-          text: `Olá novamente! Localizei o identificador da sua Base de Conhecimento (ID: ${promptId}). Vou carregar as informações já cadastradas para revisarmos juntos.`,
+          text: tokenMode
+            ? `Olá! Identifiquei seu agente pelo link do AtendenteAI. Estou carregando o que já foi cadastrado para continuarmos de onde você parou.`
+            : `Olá novamente! Localizei o identificador da sua Base de Conhecimento (ID: ${promptId}). Vou carregar as informações já cadastradas para revisarmos juntos.`,
         },
       ]);
     } else {
