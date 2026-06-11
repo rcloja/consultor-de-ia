@@ -576,16 +576,21 @@ export const DiagnosticoChat = ({ open, onClose, promptId }: Props) => {
   };
 
   const finalizarCriacaoCompleta = async (
-    baseFinal: Record<string, string[]>,
+    baseEntrada: Record<string, string[]>,
     lacunasFinal: string[],
   ) => {
     if (enviadoFinalRef.current) return;
     enviadoFinalRef.current = true;
 
+    // Garante que o "Nome do Agente" esteja preenchido (deriva default se necessário).
+    const nomeAgente = derivarNomeAgente(baseEntrada);
+    const baseFinal: Record<string, string[]> = { ...baseEntrada, "Nome do Agente": [nomeAgente] };
+    setBase(baseFinal);
+
     // 1) Compliance check obrigatório antes do envio
     setMessages((m) => [
       ...m,
-      { role: "system", tone: "info", text: "Verificando políticas de uso (compliance)…" },
+      { role: "system", tone: "info", text: `Nome do agente definido: ${nomeAgente}. Verificando políticas de uso (compliance)…` },
     ]);
 
     let compliance: ComplianceCheckResult | null = null;
