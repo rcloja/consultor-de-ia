@@ -1002,10 +1002,7 @@ export const DiagnosticoChat = ({ open, onClose, promptId, tokenMode = false }: 
       {
         role: "agent",
         text:
-          "✅ Implantação concluída a 100%. Abaixo está o **PROMPT organizado da persona do agente** que foi gerado e enviado para o servidor. Você pode copiar este conteúdo e usá-lo como o system prompt do seu agente:\n\n" +
-          "```markdown\n" +
-          promptPersona +
-          "\n```",
+          "✅ Implantação concluída a 100%. A persona do agente foi organizada internamente e enviada para o servidor. Se precisar ajustar alguma informação, é só me dizer.",
       },
     ]);
 
