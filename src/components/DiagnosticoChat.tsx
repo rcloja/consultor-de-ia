@@ -1375,9 +1375,13 @@ export const DiagnosticoChat = ({ open, onClose, promptId }: Props) => {
     const pAtual = PERGUNTAS[step];
     if (!pAtual) return;
 
+    // Perguntas opcionais aceitam termos de "pular" — salvamos string vazia
+    // e o nome final é derivado depois (ex.: "Agente <Empresa>").
+    const valorSalvo = pAtual.opcional && SKIP_REGEX.test(text) ? "" : text;
+
     setMessages((m) => [...m, { role: "user", text }]);
     setInput("");
-    setBase((b) => ({ ...b, [pAtual.campo]: [...(b[pAtual.campo] ?? []), text] }));
+    setBase((b) => ({ ...b, [pAtual.campo]: [...(b[pAtual.campo] ?? []), valorSalvo] }));
 
     const temLacuna = pAtual.lacunaSe?.(text);
     if (temLacuna && pAtual.lacunaMsg) {
