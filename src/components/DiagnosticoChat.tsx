@@ -491,6 +491,57 @@ const CAMPOS_BASE = [
   "Regras do Agente",
 ];
 
+// Aliases textuais para cada seção canônica. Permite que o usuário use
+// nomes alternativos (ex.: "vocabulário do segmento" → "Termos do Segmento")
+// ao pedir alteração/remoção, e ainda assim acertarmos a seção correta.
+const ALIASES_SECAO: Record<string, string[]> = {
+  "Nome do Agente": ["nome do agente", "nome da ia", "nome do bot", "nome do assistente"],
+  Empresa: ["empresa", "sobre a empresa", "sobre nos", "negocio"],
+  Produtos: ["produtos", "produto"],
+  Serviços: ["servicos", "servico"],
+  "Público-Alvo": ["publico alvo", "publico-alvo", "publico", "persona", "personas", "clientes ideais"],
+  "Processo Comercial": ["processo comercial", "funil", "funil de vendas", "jornada de compra", "etapas comerciais"],
+  FAQ: ["faq", "perguntas frequentes", "duvidas frequentes"],
+  Objeções: ["objecoes", "objecao", "respostas a objecoes"],
+  Diferenciais: ["diferenciais", "diferenciais competitivos", "vantagens"],
+  Políticas: ["politicas", "politicas e regras", "regras da empresa"],
+  "Casos de Sucesso": ["casos de sucesso", "cases", "depoimentos"],
+  "Termos do Segmento": [
+    "termos do segmento",
+    "termos do seguimento",
+    "vocabulario do segmento",
+    "vocabulario do seguimento",
+    "vocabulario",
+    "glossario",
+    "jargao",
+    "girias",
+  ],
+  "Fluxo de Atendimento": ["fluxo de atendimento", "fluxo", "atendimento"],
+  "Regras do Agente": ["regras do agente", "regras de conduta", "regras de conduta do agente", "conduta do agente"],
+};
+
+const normalizarTextoBusca = (s: string) =>
+  s
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+const detectarSecaoPorTexto = (texto: string): string | null => {
+  const t = normalizarTextoBusca(texto);
+  let melhor: { secao: string; len: number } | null = null;
+  for (const [canon, aliases] of Object.entries(ALIASES_SECAO)) {
+    for (const a of aliases) {
+      const an = normalizarTextoBusca(a);
+      if (an && t.includes(an) && (!melhor || an.length > melhor.len)) {
+        melhor = { secao: canon, len: an.length };
+      }
+    }
+  }
+  return melhor?.secao ?? null;
+};
+
 // ---------- Validação obrigatória de respostas do usuário ----------
 const RESPOSTAS_GENERICAS = new Set([
   "geral","gerais","todos","todas","qualquer","qualquer pessoa","qualquer um","qualquer uma",
