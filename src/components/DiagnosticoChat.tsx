@@ -798,6 +798,8 @@ export const DiagnosticoChat = ({ open, onClose, promptId, tokenMode = false }: 
   // Tentativas inválidas por pergunta (step) — após 2, oferecemos opções comuns
   // e na próxima a resposta é aceita para não travar o usuário.
   const tentativasInvRef = useRef<Record<number, number>>({});
+  // Tentativas inválidas no modo atualização (chave única "upd").
+  const tentativasUpdRef = useRef<number>(0);
 
 
   // Reinicia a conversa a cada abertura do chat
