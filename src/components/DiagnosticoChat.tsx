@@ -1374,7 +1374,7 @@ export const DiagnosticoChat = ({ open, onClose, promptId }: Props) => {
           ]);
           setFinalizado(true);
           setShowBase(true);
-          finalizarCriacaoCompleta(baseAposResposta, lacunas);
+          void finalizarCriacaoCompleta(baseAposResposta, lacunas);
         }, 900);
       } else {
         setTimeout(() => fazerPergunta(proxIdx), temLacuna ? 1400 : 700);
