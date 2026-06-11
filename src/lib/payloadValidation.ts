@@ -53,7 +53,7 @@ export function validarPergunta(pergunta: unknown, etapa: unknown): ValidationRe
 }
 
 export interface PayloadBase {
-  agente_externo?: string | null;
+  agente?: string | null;
   modo: string;
   base?: unknown;
   lacunas?: unknown;
