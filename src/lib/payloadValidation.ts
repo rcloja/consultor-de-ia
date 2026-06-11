@@ -6,18 +6,18 @@ export type ValidationResult = { ok: true; motivo?: undefined } | { ok: false; m
 
 const AGENTE_REGEX = /^[A-Za-z0-9_-]{1,128}$/;
 
-export function validarAgenteExterno(id: unknown): ValidationResult {
+export function validarAgente(id: unknown): ValidationResult {
   if (typeof id !== "string" || !id.trim()) {
     return {
       ok: false,
       motivo:
-        "ID do agente externo ausente. Acesse esta página pelo botão 'NOVO AGENTE' do AtendenteAI para que o ID seja informado via ?agente=.",
+        "ID do agente ausente. Acesse esta página pelo botão 'NOVO AGENTE' do AtendenteAI para que o ID seja informado via ?agente=.",
     };
   }
   if (!AGENTE_REGEX.test(id.trim())) {
     return {
       ok: false,
-      motivo: "ID do agente externo em formato inválido (apenas letras, números, '-' e '_', até 128 caracteres).",
+      motivo: "ID do agente em formato inválido (apenas letras, números, '-' e '_', até 128 caracteres).",
     };
   }
   return { ok: true };
@@ -53,7 +53,7 @@ export function validarPergunta(pergunta: unknown, etapa: unknown): ValidationRe
 }
 
 export interface PayloadBase {
-  agente_externo?: string | null;
+  agente?: string | null;
   modo: string;
   base?: unknown;
   lacunas?: unknown;
@@ -69,7 +69,7 @@ const MODOS_COM_BASE = new Set([
 ]);
 
 export function validarPayload(p: PayloadBase): ValidationResult {
-  const a = validarAgenteExterno(p.agente_externo);
+  const a = validarAgente(p.agente);
   if (!a.ok) return a;
 
   if (!p.modo || typeof p.modo !== "string") {
