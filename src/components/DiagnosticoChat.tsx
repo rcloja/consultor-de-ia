@@ -753,7 +753,7 @@ function gerarPromptPersona(
     if (b) secoes.push(b);
   }
   // Inclui quaisquer chaves extras que venham da base (servidor/atualização)
-  const conhecidas = new Set<string>([...ordem.map(([k]) => k), "Nome do Agente"]);
+  const conhecidas = new Set<string>([...ordem.map(([k]) => k), "Nome do Agente", "Revisão"]);
   for (const [k, v] of Object.entries(base)) {
     if (conhecidas.has(k)) continue;
     const itens = (Array.isArray(v) ? v : [v as unknown as string])
