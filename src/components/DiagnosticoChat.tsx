@@ -1260,6 +1260,79 @@ export const DiagnosticoChat = ({ open, onClose, promptId, tokenMode = false }: 
     setTimeout(() => fazerPergunta(0), 400);
   };
 
+  // Envio avulso de arquivos a qualquer momento da conversa.
+  // Extrai texto, chama o prefill e mescla os achados na Base atual.
+  const enviarArquivosAvulsos = async (fileList: FileList | null) => {
+    if (!fileList || fileList.length === 0) return;
+    const arr = Array.from(fileList).filter((f) => {
+      const n = f.name.toLowerCase();
+      return n.endsWith(".pdf") || n.endsWith(".docx") || n.endsWith(".md") || n.endsWith(".txt");
+    });
+    if (attachInputRef.current) attachInputRef.current.value = "";
+    if (arr.length === 0) {
+      setMessages((m) => [
+        ...m,
+        { role: "system", tone: "error", title: "Formato não suportado", text: "Envie arquivos nos formatos PDF, DOCX, MD ou TXT." },
+      ]);
+      return;
+    }
+    setEnviandoArquivosAvulsos(true);
+    setMessages((m) => [
+      ...m,
+      { role: "system", tone: "info", text: `Processando ${arr.length} arquivo(s): ${arr.map((f) => f.name).join(", ")}...` },
+    ]);
+    try {
+      const documents: PrefillDoc[] = [];
+      for (const f of arr) {
+        try {
+          const text = await extractTextFromFile(f);
+          if (text.trim()) documents.push({ name: f.name, text });
+        } catch (e) {
+          console.error("Falha ao extrair", f.name, e);
+        }
+      }
+      if (documents.length === 0) {
+        throw new Error("Não consegui extrair texto dos arquivos enviados.");
+      }
+      const result = await chamarPrefill({ documents });
+      // Mescla com a base atual sem duplicar entradas
+      setBase((prev) => {
+        const merged: Record<string, string[]> = { ...prev };
+        for (const [campo, itens] of Object.entries(result.base)) {
+          const existentes = new Set((merged[campo] ?? []).map((s) => s.trim().toLowerCase()));
+          const novos = (itens ?? []).filter((s) => s && !existentes.has(s.trim().toLowerCase()));
+          if (novos.length > 0) {
+            merged[campo] = [...(merged[campo] ?? []), ...novos];
+          }
+        }
+        return merged;
+      });
+      setPrefillSources((prev) => Array.from(new Set([...(prev ?? []), ...result.sources])));
+      setMessages((m) => [
+        ...m,
+        {
+          role: "system",
+          tone: "save",
+          text: `Material incorporado à Base: ${result.sources.length} fonte(s) processada(s).`,
+        },
+        {
+          role: "agent",
+          text:
+            "Recebi e li o material que você enviou. Já incorporei o que era relevante à Base de Conhecimento. Podemos seguir de onde paramos — me conte o que mais deseja ajustar ou complementar.",
+        },
+      ]);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Falha ao processar os arquivos.";
+      setMessages((m) => [
+        ...m,
+        { role: "system", tone: "error", title: "Não consegui processar os arquivos", text: msg },
+      ]);
+    } finally {
+      setEnviandoArquivosAvulsos(false);
+    }
+  };
+
+
   const confirmarPrefill = () => {
     setPrefillStage("done");
     iniciarPerguntasAposPrefill(base);
@@ -2120,6 +2193,25 @@ export const DiagnosticoChat = ({ open, onClose, promptId, tokenMode = false }: 
 
           <div className="p-3 border-t border-border bg-card space-y-2">
             <div className="flex items-end gap-2">
+              <input
+                ref={attachInputRef}
+                type="file"
+                multiple
+                accept=".pdf,.docx,.md,.txt,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/markdown,text/plain"
+                onChange={(e) => enviarArquivosAvulsos(e.target.files)}
+                className="hidden"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                title="Anexar arquivos (PDF, DOCX, MD, TXT)"
+                onClick={() => attachInputRef.current?.click()}
+                disabled={finalizado || carregandoBase || enviandoArquivosAvulsos || (!modoAtualizacao && (prefillStage === "processing" || prefillStage === "form"))}
+                className="rounded-2xl h-12 w-12 shrink-0"
+              >
+                {enviandoArquivosAvulsos ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+              </Button>
               <input
                 ref={inputRef}
                 value={input}
