@@ -148,6 +148,12 @@ interface Props {
    *  - ao concluir, faz POST de volta com o mesmo ID
    */
   promptId?: string | null;
+  /**
+   * Quando true, o `promptId` é tratado como TOKEN do agente externo
+   * (originado de `?agente=...` ao abrir pelo botão do AtendenteAI).
+   * O GET de carregamento usa `?token=...` em vez de `?id=...`.
+   */
+  tokenMode?: boolean;
 }
 
 // NOTA: Caso o servidor bloqueie por CORS, será necessário liberar CORS no
@@ -213,10 +219,14 @@ type LoadResult =
   | { status: "http"; code: number }
   | { status: "parse"; detail: string };
 
-async function carregarBaseExistente(id: string): Promise<LoadResult> {
+async function carregarBaseExistente(
+  id: string,
+  modo: "id" | "token" = "id",
+): Promise<LoadResult> {
   let resp: Response;
+  const qs = modo === "token" ? "token" : "id";
   try {
-    resp = await fetch(`${ENDPOINT}?id=${encodeURIComponent(id)}`, {
+    resp = await fetch(`${ENDPOINT}?${qs}=${encodeURIComponent(id)}`, {
       method: "GET",
       headers: { Accept: "application/json" },
     });
@@ -450,7 +460,7 @@ const CAMPOS_BASE = [
   "Regras do Agente",
 ];
 
-export const DiagnosticoChat = ({ open, onClose, promptId }: Props) => {
+export const DiagnosticoChat = ({ open, onClose, promptId, tokenMode = false }: Props) => {
   // Validação defensiva: mesmo padrão da landing — 6 a 64 chars [A-Za-z0-9_-].
   const PROMPT_ID_REGEX_INNER = /^[A-Za-z0-9_-]{6,64}$/;
   const idValido = !!promptId && PROMPT_ID_REGEX_INNER.test(promptId.trim());
@@ -996,7 +1006,9 @@ export const DiagnosticoChat = ({ open, onClose, promptId }: Props) => {
       setMessages([
         {
           role: "agent",
-          text: `Olá novamente! Localizei o identificador da sua Base de Conhecimento (ID: ${promptId}). Vou carregar as informações já cadastradas para revisarmos juntos.`,
+          text: tokenMode
+            ? `Olá! Identifiquei seu agente pelo link do AtendenteAI. Estou carregando o que já foi cadastrado para continuarmos de onde você parou.`
+            : `Olá novamente! Localizei o identificador da sua Base de Conhecimento (ID: ${promptId}). Vou carregar as informações já cadastradas para revisarmos juntos.`,
         },
       ]);
     } else {
@@ -1006,7 +1018,7 @@ export const DiagnosticoChat = ({ open, onClose, promptId }: Props) => {
       ]);
     }
 
-    const resultado = await carregarBaseExistente(promptId);
+    const resultado = await carregarBaseExistente(promptId, tokenMode ? "token" : "id");
     setCarregandoBase(false);
     setTyping(false);
 

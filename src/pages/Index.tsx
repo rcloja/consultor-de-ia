@@ -50,6 +50,7 @@ export const validarPromptId = (
 const Index = () => {
   const [chatOpen, setChatOpen] = useState(false);
   const [promptId, setPromptId] = useState<string | null>(null);
+  const [tokenMode, setTokenMode] = useState(false);
   const [idInput, setIdInput] = useState("");
   const [idErro, setIdErro] = useState<string | null>(null);
 
@@ -58,9 +59,20 @@ const Index = () => {
   const idValidacao = idTrim ? validarPromptId(idInput) : { valido: false, valor: "", erro: undefined };
   const idValido = idValidacao.valido;
 
-  // Carrega ?id=... da URL (caso o cliente volte por link salvo) — apenas se válido
+  // Carrega ?agente=... (token vindo do botão do AtendenteAI) ou ?id=... (fluxo manual).
+  // ?agente= tem precedência e auto-abre o chat em modo atualização por token.
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
+    const agente = params.get("agente");
+    if (agente) {
+      const v = validarPromptId(agente);
+      if (v.valido) {
+        setPromptId(v.valor);
+        setTokenMode(true);
+        setChatOpen(true);
+        return;
+      }
+    }
     const id = params.get("id");
     if (id) {
       const v = validarPromptId(id);
@@ -75,6 +87,7 @@ const Index = () => {
 
   const openChat = () => {
     setPromptId(null); // criação nova
+    setTokenMode(false);
     setIdErro(null);
     setChatOpen(true);
   };
@@ -86,6 +99,7 @@ const Index = () => {
       return;
     }
     setIdErro(null);
+    setTokenMode(false);
     setPromptId(v.valor);
     setChatOpen(true);
   };
@@ -573,7 +587,7 @@ const Index = () => {
         <MessageSquare className="w-5 h-5" />
       </button>
 
-      <DiagnosticoChat open={chatOpen} onClose={() => setChatOpen(false)} promptId={promptId} />
+      <DiagnosticoChat open={chatOpen} onClose={() => setChatOpen(false)} promptId={promptId} tokenMode={tokenMode} />
     </div>
   );
 };
