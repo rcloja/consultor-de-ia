@@ -769,9 +769,11 @@ export const DiagnosticoChat = ({ open, onClose, promptId, tokenMode = false }: 
   const [prefillSummary, setPrefillSummary] = useState("");
   const [prefillSources, setPrefillSources] = useState<string[]>([]);
   const [prefillError, setPrefillError] = useState<string | null>(null);
+  const [enviandoArquivosAvulsos, setEnviandoArquivosAvulsos] = useState(false);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const attachInputRef = useRef<HTMLInputElement>(null);
   const conversationIdRef = useRef<string>(gerarConversationId());
   const historyRef = useRef<ImplantadorChatHistoryItem[]>([]);
   const enviadoFinalRef = useRef<boolean>(false);
