@@ -2387,6 +2387,17 @@ export const DiagnosticoChat = ({ open, onClose, promptId, tokenMode = false }: 
                 {enviandoUpdate ? "Enviando alterações..." : "Concluir atualização e enviar"}
               </Button>
             )}
+            {!modoAtualizacao && !finalizado && (
+              <Button
+                onClick={handleConcluirPreenchimento}
+                disabled={concluindoPreenchimento || carregandoBase || prefillStage === "processing" || prefillStage === "form"}
+                variant="outline"
+                className="w-full rounded-2xl h-11"
+              >
+                <Save className="w-4 h-4 mr-2" />
+                {concluindoPreenchimento ? "Concluindo preenchimento..." : "Concluir preenchimento"}
+              </Button>
+            )}
             <p className="text-[11px] text-muted-foreground px-1 flex items-center gap-1">
               <Sparkles className="w-3 h-3" />
               {modoAtualizacao
