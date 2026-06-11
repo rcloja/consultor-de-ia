@@ -1121,7 +1121,7 @@ export const DiagnosticoChat = ({ open, onClose, promptId, tokenMode = false }: 
   const handleSalvarProgresso = async () => {
     if (salvandoParcial) return;
     const snap = snapshotAtual();
-    salvarEstado(snap);
+    // Sem persistência local — POST é o único canal de salvamento.
     setUltimoSalvamento(new Date());
     setSalvandoParcial(true);
     try {
