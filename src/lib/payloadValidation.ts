@@ -69,7 +69,7 @@ const MODOS_COM_BASE = new Set([
 ]);
 
 export function validarPayload(p: PayloadBase): ValidationResult {
-  const a = validarAgenteExterno(p.agente_externo);
+  const a = validarAgente(p.agente);
   if (!a.ok) return a;
 
   if (!p.modo || typeof p.modo !== "string") {
