@@ -1016,7 +1016,7 @@ export const DiagnosticoChat = ({ open, onClose, promptId, tokenMode = false }: 
       ]);
     }
 
-    const resultado = await carregarBaseExistente(promptId);
+    const resultado = await carregarBaseExistente(promptId, tokenMode ? "token" : "id");
     setCarregandoBase(false);
     setTyping(false);
 
