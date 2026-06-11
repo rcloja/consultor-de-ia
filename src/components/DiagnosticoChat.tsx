@@ -86,7 +86,7 @@ const TOTAL = PERGUNTAS.length;
 const OPENING =
   "Olá! Vou ajudá-lo a transformar o conhecimento do seu negócio em uma base estruturada para que sua Inteligência Artificial consiga atender clientes de forma eficiente e segura. Farei algumas perguntas e, conforme avançarmos, organizarei todas as informações em uma base de conhecimento pronta para treinamento do agente.";
 
-const ENDPOINT = "https://admin.atendenteai.com.br/receberpromptia.html";
+const ENDPOINT = "https://admin.atendenteai.com.br/api/consultor.php";
 
 /**
  * Lê o ID do agente externo passado via query string (?agente=...).
