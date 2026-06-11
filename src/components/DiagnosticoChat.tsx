@@ -492,6 +492,7 @@ export const DiagnosticoChat = ({ open, onClose, promptId }: Props) => {
   };
 
   const modoAtualizacao = idValido && !forcarCriacao;
+  const agenteExterno = getAgenteExterno();
 
   const etapaIdxAtual = Math.min(step, TOTAL - 1);
   const etapaAtual = modoAtualizacao
@@ -1294,6 +1295,12 @@ export const DiagnosticoChat = ({ open, onClose, promptId }: Props) => {
                 <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse-dot" />
                 {modoAtualizacao ? `ID: ${promptId}` : "Consultor de Implantação · online"}
               </div>
+              {agenteExterno && (
+                <div className="text-[11px] font-medium text-accent flex items-center gap-1.5 mt-0.5">
+                  <Globe className="w-3 h-3" />
+                  Agente vinculado: #{agenteExterno}
+                </div>
+              )}
             </div>
             <div className="flex items-center gap-1">
               {!modoAtualizacao && (
