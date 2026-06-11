@@ -426,6 +426,7 @@ async function enviarParcialCriacao(
   conversationId: string,
   state: PersistedState,
 ): Promise<SendResult> {
+  const promptPersonaAtual = gerarPromptPersona(state.base, state.notasAjuste);
   const payload = {
     origem: "pagina_implantacao_atendenteai",
     arquiteto: "Arquiteto de Conhecimento IA",
@@ -442,6 +443,7 @@ async function enviarParcialCriacao(
       sources: state.prefillSources,
       summary: state.prefillSummary,
     },
+    prompt_persona: promptPersonaAtual,
     timestamp: new Date(state.updatedAt).toISOString(),
   };
   const v = validarPayload(payload);
