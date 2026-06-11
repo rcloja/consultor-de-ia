@@ -425,7 +425,10 @@ interface PersistedState {
 async function enviarParcialCriacao(
   conversationId: string,
   state: PersistedState,
+  signal?: AbortSignal,
 ): Promise<SendResult> {
+  // Regenera o prompt_persona a partir do snapshot mais recente (race-safe:
+  // a base passada aqui já é a "tirada" no momento do envio).
   const promptPersonaAtual = gerarPromptPersona(state.base, state.notasAjuste);
   const payload = {
     origem: "pagina_implantacao_atendenteai",
@@ -456,13 +459,18 @@ async function enviarParcialCriacao(
       mode: "no-cors",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
+      signal,
     });
     return { ok: true };
   } catch (e) {
+    if ((e as { name?: string } | null)?.name === "AbortError") {
+      return { ok: false, motivo: "aborted", etapa: "rede" };
+    }
     console.error("Erro ao enviar progresso parcial:", e);
     return { ok: false, motivo: "Falha de rede ao salvar o progresso no servidor.", etapa: "rede" };
   }
 }
+
 
 
 
@@ -1041,7 +1049,14 @@ export const DiagnosticoChat = ({ open, onClose, promptId, tokenMode = false }: 
 
   const [salvandoParcial, setSalvandoParcial] = useState(false);
   const [ultimoSalvamento, setUltimoSalvamento] = useState<Date | null>(null);
-  
+
+  // Proteção contra condições de corrida em salvamentos paralelos.
+  // saveSeqRef: número monotônico — só o último envio iniciado é considerado vencedor.
+  // saveAbortRef: AbortController do envio em andamento, abortado quando um novo começa.
+  // debounceTimerRef: timer da auto-save (cancelado quando há salvamento explícito).
+  const saveSeqRef = useRef(0);
+  const saveAbortRef = useRef<AbortController | null>(null);
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Snapshot sempre atualizado para os listeners de unload/visibility.
   const snapshotRef = useRef<PersistedState | null>(null);
@@ -1119,14 +1134,45 @@ export const DiagnosticoChat = ({ open, onClose, promptId, tokenMode = false }: 
 
 
 
+  // Dispara um POST de salvamento parcial cancelando o anterior em voo.
+  // Garante que apenas o resultado do envio mais recente seja considerado
+  // (race-safe): cada chamada incrementa saveSeqRef; respostas tardias de
+  // envios antigos são descartadas pelo check `mySeq === saveSeqRef.current`.
+  const dispararSave = async (
+    snap: PersistedState,
+  ): Promise<{ ok: boolean; ignored: boolean; motivo?: string }> => {
+    // Cancela debounce pendente — vamos disparar agora.
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+      debounceTimerRef.current = null;
+    }
+    // Aborta envio anterior em andamento — seu resultado seria obsoleto.
+    if (saveAbortRef.current) {
+      try { saveAbortRef.current.abort(); } catch { /* noop */ }
+    }
+    const controller = new AbortController();
+    saveAbortRef.current = controller;
+    const mySeq = ++saveSeqRef.current;
+    const r = await enviarParcialCriacao(conversationIdRef.current, snap, controller.signal);
+    // Se um envio mais novo já começou enquanto este estava em voo, ignora.
+    if (mySeq !== saveSeqRef.current) {
+      return { ok: false, ignored: true };
+    }
+    if (saveAbortRef.current === controller) saveAbortRef.current = null;
+    if (r.ok) setUltimoSalvamento(new Date());
+    return { ok: r.ok, ignored: false, motivo: r.motivo };
+  };
+
   const handleSalvarProgresso = async () => {
     if (salvandoParcial) return;
-    const snap = snapshotAtual();
-    // Sem persistência local — POST é o único canal de salvamento.
-    setUltimoSalvamento(new Date());
     setSalvandoParcial(true);
     try {
-      const r = await enviarParcialCriacao(conversationIdRef.current, snap);
+      // snapshotAtual() é tirado AGORA — captura a base mais recente, e o
+      // prompt_persona será regenerado dentro de enviarParcialCriacao a partir
+      // deste mesmo snapshot, eliminando qualquer "stale prompt".
+      const snap = snapshotAtual();
+      const r = await dispararSave(snap);
+      if (r.ignored) return; // resultado descartado por envio mais novo
       if (!r.ok) {
         setMessages((m) => [
           ...m,
@@ -1154,6 +1200,7 @@ export const DiagnosticoChat = ({ open, onClose, promptId, tokenMode = false }: 
       setSalvandoParcial(false);
     }
   };
+
 
   // Importação de progresso via .txt foi removida — o progresso é mantido
   // automaticamente neste navegador e enviado via POST a cada auto-save/salvar.
@@ -1575,7 +1622,13 @@ export const DiagnosticoChat = ({ open, onClose, promptId, tokenMode = false }: 
     if (!open) return;
     if (idValido && !forcarCriacao) return; // modo atualização tem fluxo próprio
     if (messages.length === 0 && Object.keys(base).length === 0) return;
-    const handle = setTimeout(() => {
+    // Debounce: ao chegar uma nova alteração, cancela o timer anterior.
+    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    debounceTimerRef.current = setTimeout(() => {
+      debounceTimerRef.current = null;
+      // Snapshot construído DENTRO do timeout — captura o estado mais recente
+      // (último valor das closures), e o prompt_persona será regenerado a
+      // partir dele em enviarParcialCriacao.
       const snap: PersistedState = {
         conversationId: conversationIdRef.current,
         messages,
@@ -1594,13 +1647,27 @@ export const DiagnosticoChat = ({ open, onClose, promptId, tokenMode = false }: 
         enviadoFinal: enviadoFinalRef.current,
         updatedAt: Date.now(),
       };
-      void enviarParcialCriacao(conversationIdRef.current, snap)
+      // Aborta envio em voo (resultado obsoleto) e marca sequência.
+      if (saveAbortRef.current) {
+        try { saveAbortRef.current.abort(); } catch { /* noop */ }
+      }
+      const controller = new AbortController();
+      saveAbortRef.current = controller;
+      const mySeq = ++saveSeqRef.current;
+      void enviarParcialCriacao(conversationIdRef.current, snap, controller.signal)
         .then((r) => {
+          if (mySeq !== saveSeqRef.current) return; // descartado por envio mais novo
+          if (saveAbortRef.current === controller) saveAbortRef.current = null;
           if (r.ok) setUltimoSalvamento(new Date());
         })
         .catch(() => { /* erro é tratado nos pontos de envio explícito */ });
     }, 600);
-    return () => clearTimeout(handle);
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+        debounceTimerRef.current = null;
+      }
+    };
   }, [
     open,
     idValido,
