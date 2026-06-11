@@ -2110,7 +2110,7 @@ export const DiagnosticoChat = ({ open, onClose, promptId, tokenMode = false }: 
               />
             )}
 
-            {showBase && <BasePreview base={base} lacunas={lacunas} />}
+            {/* Prévia da Base de Conhecimento removida: o prompt e a estrutura interna não são mais exibidos ao usuário para manter o foco no diálogo com o consultor. */}
           </div>
 
           <div className="p-3 border-t border-border bg-card space-y-2">
