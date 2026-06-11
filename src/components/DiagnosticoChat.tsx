@@ -1326,23 +1326,35 @@ export const DiagnosticoChat = ({ open, onClose, promptId, tokenMode = false }: 
     if (resultado.status === "ok") {
       setBase(resultado.base);
       setLacunas(resultado.lacunas);
-      setShowBase(true);
-      const promptAtual = gerarPromptPersona(resultado.base, []);
+      setShowBase(false);
+
+      // Mede o quanto da base já está preenchido. Se 0% (nenhum campo com conteúdo),
+      // alterna para o fluxo de criação para perguntar nome do agente, site e materiais
+      // em vez de perguntar "o que deseja atualizar".
+      const totalItens = Object.values(resultado.base).reduce(
+        (acc, arr) => acc + (Array.isArray(arr) ? arr.filter((v) => (v ?? "").toString().trim().length > 0).length : 0),
+        0,
+      );
+      if (totalItens === 0) {
+        setMessages((m) => [
+          ...m,
+          {
+            role: "system",
+            tone: "info",
+            text: "Nenhuma informação cadastrada ainda nesta base (0% preenchida). Vamos começar do início.",
+          },
+        ]);
+        iniciarModoCriacao(false);
+        return;
+      }
+
       setMessages((m) => [
         ...m,
         { role: "system", tone: "save", text: "Base de Conhecimento carregada com sucesso." },
         {
           role: "agent",
           text:
-            "Este é o **PROMPT atual da persona do agente**, gerado a partir da base já cadastrada:\n\n" +
-            "```markdown\n" +
-            promptAtual +
-            "\n```",
-        },
-        {
-          role: "agent",
-          text:
-            'Qual alteração você gostaria de fazer no prompt? Descreva em uma mensagem (ex.: "Mudar o tom de voz para mais informal", "Atualizar política de reembolso para 7 dias", "Adicionar novo diferencial: atendimento 24h"). A cada mensagem eu atualizo o prompt e mostro a versão revisada. Quando estiver pronto, clique em "Concluir atualização" para enviar.',
+            'Qual informação você gostaria de atualizar? Descreva em uma mensagem indicando a seção e o novo conteúdo (ex.: "Mudar o tom de voz para mais informal", "Atualizar política de reembolso para 7 dias", "Adicionar novo diferencial: atendimento 24h"). A cada mensagem eu registro a alteração. Quando estiver pronto, clique em "Concluir atualização" para enviar.',
         },
       ]);
       inputRef.current?.focus();
