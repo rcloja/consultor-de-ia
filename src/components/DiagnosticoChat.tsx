@@ -10,6 +10,11 @@ import {
   MSG_BLOQUEIO_CRITICO,
   type ComplianceCheckResult,
 } from "@/lib/compliance";
+import {
+  validarPayload,
+  interpretarResposta,
+  type RespostaInterpretada,
+} from "@/lib/payloadValidation";
 
 const AGENT_ID = "arquiteto-conhecimento-ia";
 
