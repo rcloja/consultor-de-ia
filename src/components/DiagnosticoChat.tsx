@@ -425,7 +425,10 @@ interface PersistedState {
 async function enviarParcialCriacao(
   conversationId: string,
   state: PersistedState,
+  signal?: AbortSignal,
 ): Promise<SendResult> {
+  // Regenera o prompt_persona a partir do snapshot mais recente (race-safe:
+  // a base passada aqui já é a "tirada" no momento do envio).
   const promptPersonaAtual = gerarPromptPersona(state.base, state.notasAjuste);
   const payload = {
     origem: "pagina_implantacao_atendenteai",
@@ -456,13 +459,18 @@ async function enviarParcialCriacao(
       mode: "no-cors",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
+      signal,
     });
     return { ok: true };
   } catch (e) {
+    if ((e as { name?: string } | null)?.name === "AbortError") {
+      return { ok: false, motivo: "aborted", etapa: "rede" };
+    }
     console.error("Erro ao enviar progresso parcial:", e);
     return { ok: false, motivo: "Falha de rede ao salvar o progresso no servidor.", etapa: "rede" };
   }
 }
+
 
 
 
