@@ -1134,14 +1134,45 @@ export const DiagnosticoChat = ({ open, onClose, promptId, tokenMode = false }: 
 
 
 
+  // Dispara um POST de salvamento parcial cancelando o anterior em voo.
+  // Garante que apenas o resultado do envio mais recente seja considerado
+  // (race-safe): cada chamada incrementa saveSeqRef; respostas tardias de
+  // envios antigos são descartadas pelo check `mySeq === saveSeqRef.current`.
+  const dispararSave = async (
+    snap: PersistedState,
+  ): Promise<{ ok: boolean; ignored: boolean; motivo?: string }> => {
+    // Cancela debounce pendente — vamos disparar agora.
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+      debounceTimerRef.current = null;
+    }
+    // Aborta envio anterior em andamento — seu resultado seria obsoleto.
+    if (saveAbortRef.current) {
+      try { saveAbortRef.current.abort(); } catch { /* noop */ }
+    }
+    const controller = new AbortController();
+    saveAbortRef.current = controller;
+    const mySeq = ++saveSeqRef.current;
+    const r = await enviarParcialCriacao(conversationIdRef.current, snap, controller.signal);
+    // Se um envio mais novo já começou enquanto este estava em voo, ignora.
+    if (mySeq !== saveSeqRef.current) {
+      return { ok: false, ignored: true };
+    }
+    if (saveAbortRef.current === controller) saveAbortRef.current = null;
+    if (r.ok) setUltimoSalvamento(new Date());
+    return { ok: r.ok, ignored: false, motivo: r.motivo };
+  };
+
   const handleSalvarProgresso = async () => {
     if (salvandoParcial) return;
-    const snap = snapshotAtual();
-    // Sem persistência local — POST é o único canal de salvamento.
-    setUltimoSalvamento(new Date());
     setSalvandoParcial(true);
     try {
-      const r = await enviarParcialCriacao(conversationIdRef.current, snap);
+      // snapshotAtual() é tirado AGORA — captura a base mais recente, e o
+      // prompt_persona será regenerado dentro de enviarParcialCriacao a partir
+      // deste mesmo snapshot, eliminando qualquer "stale prompt".
+      const snap = snapshotAtual();
+      const r = await dispararSave(snap);
+      if (r.ignored) return; // resultado descartado por envio mais novo
       if (!r.ok) {
         setMessages((m) => [
           ...m,
@@ -1169,6 +1200,7 @@ export const DiagnosticoChat = ({ open, onClose, promptId, tokenMode = false }: 
       setSalvandoParcial(false);
     }
   };
+
 
   // Importação de progresso via .txt foi removida — o progresso é mantido
   // automaticamente neste navegador e enviado via POST a cada auto-save/salvar.
