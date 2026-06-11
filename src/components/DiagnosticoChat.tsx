@@ -41,6 +41,20 @@ interface Pergunta {
   campo: string;
   lacunaSe?: (resp: string) => boolean;
   lacunaMsg?: string;
+  opcional?: boolean;
+}
+
+const SKIP_REGEX = /^(pular|skip|n[aã]o|nao quero|sem nome|nenhum|nenhuma|--|-)$/i;
+
+function derivarNomeAgente(base: Record<string, string[]>): string {
+  const escolhido = (base["Nome do Agente"] ?? []).map((s) => s?.trim()).find((s) => s && !SKIP_REGEX.test(s));
+  if (escolhido) return escolhido;
+  const empresaRaw = (base["Empresa"] ?? [])[0] ?? "";
+  // pega a primeira parte antes de vírgula/“e”/“-” e a primeira palavra significativa
+  const limpo = empresaRaw.split(/[,;\-–—|]/)[0].replace(/\b(ltda|me|eireli|s\.?a\.?|epp)\b/gi, "").trim();
+  const primeira = limpo.split(/\s+/).filter((w) => w.length > 2 && !/^(da|de|do|das|dos|the|a|o)$/i.test(w))[0] ?? "";
+  const nome = primeira ? primeira[0].toUpperCase() + primeira.slice(1).toLowerCase() : "IA";
+  return `Agente ${nome}`;
 }
 
 const ETAPAS = [
@@ -59,12 +73,18 @@ const ETAPAS = [
 const curta = (r: string) => r.trim().split(/\s+/).length < 4;
 
 const PERGUNTAS: Pergunta[] = [
+  {
+    texto:
+      "Antes de tudo, como você gostaria de chamar o seu agente de IA? (Opcional — se preferir, digite 'pular' e usaremos 'Agente <nome da sua empresa>', por exemplo 'Agente Colombo'.)",
+    etapaIdx: 0,
+    campo: "Nome do Agente",
+    opcional: true,
+  },
   { texto: "Para começarmos, qual é o nome da sua empresa e em qual segmento ela atua?", etapaIdx: 0, campo: "Empresa" },
   { texto: "Há quanto tempo sua empresa está no mercado e qual região você atende?", etapaIdx: 0, campo: "Empresa" },
-  { texto: "Quem é o principal público que sua empresa atende hoje?", etapaIdx: 0, campo: "Público-Alvo", lacunaSe: curta, lacunaMsg: "Não definiu público-alvo com clareza" },
+  { texto: "Quem é o principal público que sua empresa atende hoje? (descreva quem são, faixa etária, nível cultural, hábitos e o que costumam buscar)", etapaIdx: 0, campo: "Público-Alvo", lacunaSe: curta, lacunaMsg: "Não definiu público-alvo com clareza" },
   { texto: "Quais são os principais produtos ou serviços que sua empresa oferece?", etapaIdx: 1, campo: "Produtos" },
   { texto: "Existe algum produto ou serviço que você considera o mais importante ou mais vendido?", etapaIdx: 1, campo: "Produtos" },
-  { texto: "Qual é o ticket médio aproximado dos seus clientes?", etapaIdx: 1, campo: "Serviços" },
   { texto: "Como os clientes normalmente chegam até sua empresa?", etapaIdx: 2, campo: "Processo Comercial" },
   { texto: "Como acontece o atendimento desde o primeiro contato até a venda?", etapaIdx: 2, campo: "Processo Comercial" },
   { texto: "Depois que o cliente compra, existe algum processo de acompanhamento ou pós-venda?", etapaIdx: 2, campo: "Processo Comercial", lacunaSe: curta, lacunaMsg: "Processo de pós-venda precisa de mais detalhes" },
@@ -414,6 +434,7 @@ async function enviarParcialCriacao(
 
 
 const CAMPOS_BASE = [
+  "Nome do Agente",
   "Empresa",
   "Produtos",
   "Serviços",
@@ -555,16 +576,21 @@ export const DiagnosticoChat = ({ open, onClose, promptId }: Props) => {
   };
 
   const finalizarCriacaoCompleta = async (
-    baseFinal: Record<string, string[]>,
+    baseEntrada: Record<string, string[]>,
     lacunasFinal: string[],
   ) => {
     if (enviadoFinalRef.current) return;
     enviadoFinalRef.current = true;
 
+    // Garante que o "Nome do Agente" esteja preenchido (deriva default se necessário).
+    const nomeAgente = derivarNomeAgente(baseEntrada);
+    const baseFinal: Record<string, string[]> = { ...baseEntrada, "Nome do Agente": [nomeAgente] };
+    setBase(baseFinal);
+
     // 1) Compliance check obrigatório antes do envio
     setMessages((m) => [
       ...m,
-      { role: "system", tone: "info", text: "Verificando políticas de uso (compliance)…" },
+      { role: "system", tone: "info", text: `Nome do agente definido: ${nomeAgente}. Verificando políticas de uso (compliance)…` },
     ]);
 
     let compliance: ComplianceCheckResult | null = null;
@@ -576,6 +602,7 @@ export const DiagnosticoChat = ({ open, onClose, promptId }: Props) => {
         conversation_id: conversationIdRef.current,
         trigger_event: "criacao_finalizada",
         payload: {
+          nome_agente: nomeAgente,
           nome_negocio: (baseFinal["Empresa"] ?? []).join(" | "),
           descricao_empresa: (baseFinal["Empresa"] ?? []).join("\n"),
           base: baseFinal,
@@ -1354,9 +1381,13 @@ export const DiagnosticoChat = ({ open, onClose, promptId }: Props) => {
     const pAtual = PERGUNTAS[step];
     if (!pAtual) return;
 
+    // Perguntas opcionais aceitam termos de "pular" — salvamos string vazia
+    // e o nome final é derivado depois (ex.: "Agente <Empresa>").
+    const valorSalvo = pAtual.opcional && SKIP_REGEX.test(text) ? "" : text;
+
     setMessages((m) => [...m, { role: "user", text }]);
     setInput("");
-    setBase((b) => ({ ...b, [pAtual.campo]: [...(b[pAtual.campo] ?? []), text] }));
+    setBase((b) => ({ ...b, [pAtual.campo]: [...(b[pAtual.campo] ?? []), valorSalvo] }));
 
     const temLacuna = pAtual.lacunaSe?.(text);
     if (temLacuna && pAtual.lacunaMsg) {
@@ -1802,6 +1833,7 @@ export const DiagnosticoChat = ({ open, onClose, promptId }: Props) => {
 };
 
 const SECOES_FINAIS = [
+  "Nome do Agente",
   "Empresa",
   "Produtos",
   "Serviços",
