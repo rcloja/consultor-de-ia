@@ -1135,7 +1135,7 @@ export const DiagnosticoChat = ({ open, onClose, promptId, tokenMode = false }: 
             title: "Progresso não enviado ao servidor",
             text:
               (r.motivo ?? "Falha desconhecida.") +
-              " Tente novamente em instantes — seu progresso continua salvo neste navegador.",
+              " Tente novamente em instantes — o progresso só é salvo quando o servidor confirmar.",
           },
         ]);
       } else {
@@ -1145,7 +1145,7 @@ export const DiagnosticoChat = ({ open, onClose, promptId, tokenMode = false }: 
             role: "system",
             tone: "save",
             text:
-              "Progresso enviado ao servidor. Você pode fechar a página e voltar depois — neste navegador o progresso volta sozinho.",
+              "Progresso salvo no servidor. Ao reabrir esta página, suas respostas serão recuperadas diretamente do backend.",
           },
         ]);
       }
