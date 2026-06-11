@@ -213,10 +213,14 @@ type LoadResult =
   | { status: "http"; code: number }
   | { status: "parse"; detail: string };
 
-async function carregarBaseExistente(id: string): Promise<LoadResult> {
+async function carregarBaseExistente(
+  id: string,
+  modo: "id" | "token" = "id",
+): Promise<LoadResult> {
   let resp: Response;
+  const qs = modo === "token" ? "token" : "id";
   try {
-    resp = await fetch(`${ENDPOINT}?id=${encodeURIComponent(id)}`, {
+    resp = await fetch(`${ENDPOINT}?${qs}=${encodeURIComponent(id)}`, {
       method: "GET",
       headers: { Accept: "application/json" },
     });
