@@ -497,6 +497,71 @@ const CAMPOS_BASE = [
   "Regras do Agente",
 ];
 
+// ---------- Geração do PROMPT organizado da persona ----------
+function gerarPromptPersona(
+  base: Record<string, string[]>,
+  notasAjuste: string[] = [],
+): string {
+  const nome = derivarNomeAgente(base);
+  const get = (k: string) =>
+    (base[k] ?? []).map((s) => (s ?? "").trim()).filter(Boolean);
+  const bloco = (titulo: string, itens: string[]) =>
+    itens.length ? `## ${titulo}\n${itens.map((i) => `- ${i}`).join("\n")}` : "";
+
+  const secoes: string[] = [];
+  secoes.push(`# Persona: ${nome}`);
+  secoes.push(
+    `Você é **${nome}**, assistente virtual oficial da empresa descrita abaixo. ` +
+      `Sua missão é atender clientes com excelência, respeitando integralmente as informações, políticas e tom de voz definidos nesta base de conhecimento.`,
+  );
+
+  const ordem: Array<[string, string]> = [
+    ["Empresa", "Sobre a Empresa"],
+    ["Público-Alvo", "Público-Alvo"],
+    ["Produtos", "Produtos"],
+    ["Serviços", "Serviços"],
+    ["Diferenciais", "Diferenciais Competitivos"],
+    ["Processo Comercial", "Processo Comercial"],
+    ["Fluxo de Atendimento", "Fluxo de Atendimento"],
+    ["FAQ", "Perguntas Frequentes"],
+    ["Objeções", "Objeções e Respostas"],
+    ["Políticas", "Políticas e Regras"],
+    ["Casos de Sucesso", "Casos de Sucesso"],
+    ["Termos do Segmento", "Vocabulário do Segmento"],
+    ["Regras do Agente", "Regras de Conduta do Agente"],
+  ];
+  for (const [chave, titulo] of ordem) {
+    const b = bloco(titulo, get(chave));
+    if (b) secoes.push(b);
+  }
+  // Inclui quaisquer chaves extras que venham da base (servidor/atualização)
+  const conhecidas = new Set<string>([...ordem.map(([k]) => k), "Nome do Agente"]);
+  for (const [k, v] of Object.entries(base)) {
+    if (conhecidas.has(k)) continue;
+    const itens = (Array.isArray(v) ? v : [v as unknown as string])
+      .map((s) => (typeof s === "string" ? s.trim() : ""))
+      .filter(Boolean);
+    const b = bloco(k, itens);
+    if (b) secoes.push(b);
+  }
+
+  secoes.push(
+    `## Instruções Operacionais\n` +
+      `- Responder sempre em português, com o tom de voz definido acima.\n` +
+      `- Basear-se exclusivamente nas informações desta base; nunca inventar dados.\n` +
+      `- Aplicar as políticas e regras de conduta sem exceções.\n` +
+      `- Encaminhar para atendimento humano quando a solicitação fugir do escopo.\n` +
+      `- Confirmar dados sensíveis antes de registrar pedidos ou alterações.`,
+  );
+
+  const notas = notasAjuste.map((n) => n.trim()).filter(Boolean);
+  if (notas.length) {
+    secoes.push(bloco("Ajustes Recentes (prioritários)", notas));
+  }
+
+  return secoes.filter(Boolean).join("\n\n");
+}
+
 export const DiagnosticoChat = ({ open, onClose, promptId, tokenMode = false }: Props) => {
   // Validação defensiva: mesmo padrão da landing — 6 a 64 chars [A-Za-z0-9_-].
   const PROMPT_ID_REGEX_INNER = /^[A-Za-z0-9_-]{6,64}$/;
