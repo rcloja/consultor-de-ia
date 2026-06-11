@@ -709,6 +709,58 @@ const DEFAULTS_GENERICOS: Record<string, string[]> = {
   ],
 };
 
+// Chaves internas que NUNCA podem aparecer no prompt_persona,
+// independentemente de virem da base local ou de bases antigas no servidor.
+// A comparação é feita de forma normalizada (sem acento, minúsculas, sem
+// espaços/pontuação extras) para cobrir variações como "Revisao", "revisão",
+// "Revisão Final", "## Revisão", etc.
+const CHAVES_INTERNAS_BLOQUEADAS = [
+  "Revisão",
+  "Revisao",
+  "Revisão Final",
+  "Revisão final da Base de Conhecimento",
+  "Nome do Agente",
+  "Confirmação",
+  "Confirmacao",
+  "Observações Internas",
+  "Observacoes Internas",
+  "Notas Internas",
+  "Ajustes Recentes",
+  "Ajuste",
+  "Ajustes",
+  "Meta",
+  "Metadados",
+  "Debug",
+  "Interno",
+];
+
+function normalizarChave(k: string): string {
+  return (k ?? "")
+    .toString()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/^[#\s\-_:]+/, "")
+    .replace(/[\s\-_:]+$/, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+const CHAVES_INTERNAS_NORMALIZADAS = new Set(
+  CHAVES_INTERNAS_BLOQUEADAS.map(normalizarChave),
+);
+
+function ehChaveInterna(k: string): boolean {
+  const n = normalizarChave(k);
+  if (!n) return true; // chave vazia também é descartada
+  if (CHAVES_INTERNAS_NORMALIZADAS.has(n)) return true;
+  // Bloqueia qualquer chave que comece por "revisao" (ex: "Revisão da base")
+  if (/^revisao\b/.test(n)) return true;
+  // Bloqueia chaves que sejam respostas curtas (sim/nao/ok) salvas indevidamente
+  if (/^(sim|nao|ok|confirmo|confirmar)$/.test(n)) return true;
+  return false;
+}
+
 function gerarPromptPersona(
   base: Record<string, string[]>,
   // notasAjuste mantido por compatibilidade de assinatura; NÃO é mais
@@ -745,6 +797,7 @@ function gerarPromptPersona(
     ["Regras do Agente", "Regras de Conduta do Agente"],
   ];
   for (const [chave, titulo] of ordem) {
+    if (ehChaveInterna(chave)) continue; // proteção dupla
     let itens = get(chave);
     if (itens.length === 0 && DEFAULTS_GENERICOS[chave]) {
       itens = DEFAULTS_GENERICOS[chave];
@@ -752,16 +805,20 @@ function gerarPromptPersona(
     const b = bloco(titulo, itens);
     if (b) secoes.push(b);
   }
-  // Inclui quaisquer chaves extras que venham da base (servidor/atualização)
-  const conhecidas = new Set<string>([...ordem.map(([k]) => k), "Nome do Agente", "Revisão"]);
+  // Inclui quaisquer chaves extras que venham da base (servidor/atualização),
+  // exceto chaves já mapeadas e chaves internas bloqueadas.
+  const mapeadas = new Set(ordem.map(([k]) => normalizarChave(k)));
   for (const [k, v] of Object.entries(base)) {
-    if (conhecidas.has(k)) continue;
+    const n = normalizarChave(k);
+    if (mapeadas.has(n)) continue;
+    if (ehChaveInterna(k)) continue;
     const itens = (Array.isArray(v) ? v : [v as unknown as string])
       .map((s) => (typeof s === "string" ? s.trim() : ""))
       .filter(Boolean);
     const b = bloco(k, itens);
     if (b) secoes.push(b);
   }
+
 
   secoes.push(
     `## Instruções Operacionais\n` +
