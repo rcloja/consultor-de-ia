@@ -1380,13 +1380,16 @@ export const DiagnosticoChat = ({ open, onClose, promptId, tokenMode = false }: 
     if (!text || finalizado) return;
     setMessages((m) => [...m, { role: "user", text }]);
     setInput("");
-    setNotasAjuste((n) => [...n, text]);
+    const novasNotas = [...notasAjuste, text];
+    setNotasAjuste(novasNotas);
     // Heurística simples: se mencionar nome de uma seção conhecida, anexa lá também.
     const lower = text.toLowerCase();
     const secao = CAMPOS_BASE.find((c) => lower.includes(c.toLowerCase()));
-    if (secao) {
-      setBase((b) => ({ ...b, [secao]: [...(b[secao] ?? []), text] }));
-    }
+    const baseAtualizada: Record<string, string[]> = secao
+      ? { ...base, [secao]: [...(base[secao] ?? []), text] }
+      : base;
+    if (secao) setBase(baseAtualizada);
+    const promptRevisado = gerarPromptPersona(baseAtualizada, novasNotas);
     setTimeout(() => {
       setMessages((m) => [
         ...m,
@@ -1395,8 +1398,17 @@ export const DiagnosticoChat = ({ open, onClose, promptId, tokenMode = false }: 
           tone: "save",
           text: secao ? `Ajuste registrado em: ${secao}.` : "Ajuste registrado nas notas de atualização.",
         },
+        {
+          role: "agent",
+          text:
+            "Aqui está o **prompt revisado** com a sua alteração aplicada:\n\n" +
+            "```markdown\n" +
+            promptRevisado +
+            "\n```\n\nSe quiser fazer mais ajustes, é só me dizer. Quando estiver pronto, clique em **Concluir atualização**.",
+        },
       ]);
     }, 350);
+
     void pedirComentarioIA(text, {
       tipo: "ajuste_em_atualizacao",
       secao_detectada: secao ?? null,
