@@ -1957,10 +1957,41 @@ export const DiagnosticoChat = ({ open, onClose, promptId, tokenMode = false }: 
     }
 
     let baseAtualizada: Record<string, string[]> = base;
-    let secaoDetectada: string | null = null;
+    let secaoDetectada: string | null = detectarSecaoPorTexto(text);
     const removidos: { secao: string; trecho: string }[] = [];
+    let substituido = false;
 
-    if (intentRemocao && alvo && alvo.length >= 3) {
+    // ---------- INTENÇÃO DE SUBSTITUIÇÃO ----------
+    // Padrões: "altere/substitua/troque/mude ... para/por/com: <novo>"
+    // Quando há seção detectada, substitui o conteúdo daquela seção pelo novo.
+    const intentSubstituicao =
+      /\b(substitu(ir|a|i)|altere|alterar|alterando|troc(ar|a|ue|o)|mud(ar|e|a|o)|atualiz(ar|e|a|o)|corrij(a|ir)|corrige|reescrev(er|a|e))\b/i.test(
+        text,
+      );
+    if (intentSubstituicao && !intentRemocao && secaoDetectada) {
+      // Captura o "novo conteúdo" após para/por/com/:
+      let novo = "";
+      const mPara = text.match(/\b(?:para|por|com)\s*:?\s*(.{2,})$/i);
+      const mDoisP = text.match(/:\s*(.{2,})$/);
+      if (mPara) novo = mPara[1].trim();
+      else if (mDoisP) novo = mDoisP[1].trim();
+      novo = novo.replace(/^["“”'`«»\s\-–—]+|["“”'`«»\s\-–—.,;!?]+$/g, "").trim();
+      if (novo && novo.length >= 2) {
+        // Quebra por vírgulas/;/quebras de linha em itens (mantém aspas internas).
+        const itensNovos = novo
+          .split(/\s*(?:;|\n|·)\s*|\s*,\s+/)
+          .map((s) => s.trim())
+          .filter((s) => s.length >= 2);
+        baseAtualizada = {
+          ...base,
+          [secaoDetectada]: itensNovos.length > 0 ? itensNovos : [novo],
+        };
+        setBase(baseAtualizada);
+        substituido = true;
+      }
+    }
+
+    if (!substituido && intentRemocao && alvo && alvo.length >= 3) {
       const alvoNorm = norm(alvo);
       const reAlvo = new RegExp(
         alvo.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
@@ -1969,6 +2000,11 @@ export const DiagnosticoChat = ({ open, onClose, promptId, tokenMode = false }: 
       const novaBase: Record<string, string[]> = {};
       for (const [k, itens] of Object.entries(base)) {
         const arr = Array.isArray(itens) ? itens : [];
+        // Se o usuário indicou uma seção, restringimos a remoção a ela.
+        if (secaoDetectada && k !== secaoDetectada) {
+          novaBase[k] = arr.slice();
+          continue;
+        }
         const out: string[] = [];
         for (const it of arr) {
           const itStr = typeof it === "string" ? it : String(it ?? "");
@@ -1989,22 +2025,32 @@ export const DiagnosticoChat = ({ open, onClose, promptId, tokenMode = false }: 
       if (removidos.length > 0) {
         baseAtualizada = novaBase;
         setBase(novaBase);
+      } else if (secaoDetectada) {
+        // Usuário pediu remoção genérica numa seção sem indicar trecho:
+        // limpamos a seção inteira.
+        const limpa = { ...base, [secaoDetectada]: [] };
+        baseAtualizada = limpa;
+        setBase(limpa);
+        removidos.push({ secao: secaoDetectada, trecho: "(seção limpa)" });
       }
     }
 
-    // Se NÃO foi remoção (ou não encontramos o alvo), mantém o comportamento
-    // anterior: heurística de seção e anexar como novo conteúdo.
-    if (removidos.length === 0) {
-      const lower = text.toLowerCase();
-      const secao = CAMPOS_BASE.find((c) => lower.includes(c.toLowerCase()));
+    // Se NÃO foi remoção/substituição (ou não encontramos o alvo), mantém o
+    // comportamento anterior: heurística de seção e anexar como novo conteúdo.
+    if (!substituido && removidos.length === 0) {
+      const secao =
+        secaoDetectada ??
+        CAMPOS_BASE.find((c) => text.toLowerCase().includes(c.toLowerCase())) ??
+        null;
       if (secao && !intentRemocao) {
         baseAtualizada = { ...base, [secao]: [...(base[secao] ?? []), text] };
         secaoDetectada = secao;
         setBase(baseAtualizada);
       } else {
-        secaoDetectada = secao ?? null;
+        secaoDetectada = secao;
       }
     }
+
 
     const promptRevisado = gerarPromptPersona(baseAtualizada, novasNotas);
     void promptRevisado; // gerado para uso interno/compliance; não exibido ao usuário
