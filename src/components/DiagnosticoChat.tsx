@@ -612,6 +612,7 @@ export const DiagnosticoChat = ({ open, onClose, promptId }: Props) => {
         const payload = JSON.stringify({
           origem: "pagina_implantacao_atendenteai",
           agente: "Arquiteto de Conhecimento IA",
+          agente_externo: getAgenteExterno(),
           modo: "criacao_autosave",
           conversation_id: s.conversationId,
           base: s.base,
