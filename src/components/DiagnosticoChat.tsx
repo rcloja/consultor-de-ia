@@ -82,6 +82,30 @@ const OPENING =
 
 const ENDPOINT = "https://admin.atendenteai.com.br/receberpromptia.html";
 
+/**
+ * Lê o ID do agente externo passado via query string (?agente=...).
+ * Esse ID é gerado no painel do cliente e usado para atrelar a base
+ * de conhecimento construída aqui ao agente correspondente no banco dele.
+ * Persiste em sessionStorage para sobreviver a navegações/reloads dentro da SPA.
+ */
+function getAgenteExterno(): string | null {
+  try {
+    if (typeof window === "undefined") return null;
+    const url = new URL(window.location.href);
+    const fromUrl = url.searchParams.get("agente");
+    if (fromUrl && fromUrl.trim()) {
+      const v = fromUrl.trim().slice(0, 128);
+      try { sessionStorage.setItem("agente_externo_id", v); } catch { /* noop */ }
+      return v;
+    }
+    try {
+      const cached = sessionStorage.getItem("agente_externo_id");
+      if (cached) return cached;
+    } catch { /* noop */ }
+  } catch { /* noop */ }
+  return null;
+}
+
 interface Props {
   open: boolean;
   onClose: () => void;
@@ -116,6 +140,7 @@ async function enviarPerguntaParaServidor(
         origem: "pagina_implantacao_atendenteai",
         agente: "Arquiteto de Conhecimento IA",
         funcao: "Consultor de Implantação de IA",
+        agente_externo: getAgenteExterno(),
         modo: promptId ? "atualizacao" : "criacao",
         prompt_id: promptId ?? null,
         etapa_atual: etapaAtual,
@@ -196,6 +221,7 @@ async function enviarBaseAtualizada(
       body: JSON.stringify({
         origem: "pagina_implantacao_atendenteai",
         agente: "Arquiteto de Conhecimento IA",
+        agente_externo: getAgenteExterno(),
         modo: "atualizacao_finalizada",
         prompt_id: promptId,
         base,
@@ -224,6 +250,7 @@ async function enviarBaseFinalCriacao(
       body: JSON.stringify({
         origem: "pagina_implantacao_atendenteai",
         agente: "Arquiteto de Conhecimento IA",
+        agente_externo: getAgenteExterno(),
         modo: "criacao_finalizada",
         conversation_id: conversationId,
         base,
@@ -338,6 +365,7 @@ async function enviarParcialCriacao(
       body: JSON.stringify({
         origem: "pagina_implantacao_atendenteai",
         agente: "Arquiteto de Conhecimento IA",
+        agente_externo: getAgenteExterno(),
         modo: "criacao_parcial",
         conversation_id: conversationId,
         base: state.base,
@@ -584,6 +612,7 @@ export const DiagnosticoChat = ({ open, onClose, promptId }: Props) => {
         const payload = JSON.stringify({
           origem: "pagina_implantacao_atendenteai",
           agente: "Arquiteto de Conhecimento IA",
+          agente_externo: getAgenteExterno(),
           modo: "criacao_autosave",
           conversation_id: s.conversationId,
           base: s.base,
