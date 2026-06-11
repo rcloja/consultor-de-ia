@@ -175,7 +175,7 @@ async function enviarPerguntaParaServidor(
 ): Promise<SendResult> {
   const payload = {
     origem: "pagina_implantacao_atendenteai",
-    agente: "Arquiteto de Conhecimento IA",
+    arquiteto: "Arquiteto de Conhecimento IA",
     funcao: "Consultor de Implantação de IA",
     agente: getAgenteExterno(),
     modo: promptId ? "atualizacao" : "criacao",
@@ -262,8 +262,8 @@ async function enviarBaseAtualizada(
 ): Promise<SendResult> {
   const payload = {
     origem: "pagina_implantacao_atendenteai",
-    agente: "Arquiteto de Conhecimento IA",
-    agente_externo: getAgenteExterno(),
+    arquiteto: "Arquiteto de Conhecimento IA",
+    agente: getAgenteExterno(),
     modo: "atualizacao_finalizada",
     prompt_id: promptId,
     base,
@@ -306,8 +306,8 @@ async function enviarBaseFinalCriacao(
 ): Promise<SendResult> {
   const payload = {
     origem: "pagina_implantacao_atendenteai",
-    agente: "Arquiteto de Conhecimento IA",
-    agente_externo: getAgenteExterno(),
+    arquiteto: "Arquiteto de Conhecimento IA",
+    agente: getAgenteExterno(),
     modo: "criacao_finalizada",
     conversation_id: conversationId,
     base,
@@ -397,8 +397,8 @@ async function enviarParcialCriacao(
 ): Promise<SendResult> {
   const payload = {
     origem: "pagina_implantacao_atendenteai",
-    agente: "Arquiteto de Conhecimento IA",
-    agente_externo: getAgenteExterno(),
+    arquiteto: "Arquiteto de Conhecimento IA",
+    agente: getAgenteExterno(),
     modo: "criacao_parcial",
     conversation_id: conversationId,
     base: state.base,
@@ -751,8 +751,8 @@ export const DiagnosticoChat = ({ open, onClose, promptId }: Props) => {
       try {
         const payload = JSON.stringify({
           origem: "pagina_implantacao_atendenteai",
-          agente: "Arquiteto de Conhecimento IA",
-          agente_externo: getAgenteExterno(),
+          arquiteto: "Arquiteto de Conhecimento IA",
+          agente: getAgenteExterno(),
           modo: "criacao_autosave",
           conversation_id: s.conversationId,
           base: s.base,
