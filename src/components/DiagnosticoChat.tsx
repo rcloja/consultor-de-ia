@@ -1150,18 +1150,28 @@ export const DiagnosticoChat = ({ open, onClose, promptId, tokenMode = false }: 
       setBase(resultado.base);
       setLacunas(resultado.lacunas);
       setShowBase(true);
+      const promptAtual = gerarPromptPersona(resultado.base, []);
       setMessages((m) => [
         ...m,
         { role: "system", tone: "save", text: "Base de Conhecimento carregada com sucesso." },
         {
           role: "agent",
           text:
-            'Revise abaixo o que já está cadastrado. Me diga, em mensagens, o que deseja atualizar (ex.: "Atualizar política de reembolso para 7 dias" ou "Adicionar novo diferencial: atendimento 24h"). Quando terminar, clique em "Concluir atualização" e eu envio tudo de volta.',
+            "Este é o **PROMPT atual da persona do agente**, gerado a partir da base já cadastrada:\n\n" +
+            "```markdown\n" +
+            promptAtual +
+            "\n```",
+        },
+        {
+          role: "agent",
+          text:
+            'Qual alteração você gostaria de fazer no prompt? Descreva em uma mensagem (ex.: "Mudar o tom de voz para mais informal", "Atualizar política de reembolso para 7 dias", "Adicionar novo diferencial: atendimento 24h"). A cada mensagem eu atualizo o prompt e mostro a versão revisada. Quando estiver pronto, clique em "Concluir atualização" para enviar.',
         },
       ]);
       inputRef.current?.focus();
       return;
     }
+
 
     if (resultado.status === "notfound") {
       setMessages((m) => [
