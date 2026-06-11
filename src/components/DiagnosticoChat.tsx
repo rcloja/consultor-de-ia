@@ -654,7 +654,7 @@ export const DiagnosticoChat = ({ open, onClose, promptId }: Props) => {
     }
 
     // 2) Liberado — envia ao servidor
-    void enviarBaseFinalCriacao(
+    const resultado = await enviarBaseFinalCriacao(
       conversationIdRef.current,
       baseFinal,
       lacunasFinal,
@@ -664,16 +664,36 @@ export const DiagnosticoChat = ({ open, onClose, promptId }: Props) => {
         sources: prefillSources,
         summary: prefillSummary,
       },
-    ).then(() => {
+    );
+    if (!resultado.ok) {
+      // Libera retentativa
+      enviadoFinalRef.current = false;
       setMessages((m) => [
         ...m,
         {
           role: "system",
-          tone: "save",
-          text: "Base de Conhecimento aprovada em compliance e enviada ao servidor com sucesso.",
+          tone: "error",
+          title:
+            resultado.etapa === "validacao"
+              ? "Envio bloqueado — dados inválidos"
+              : resultado.etapa === "rede"
+                ? "Falha de comunicação com o servidor"
+                : "Resposta inválida do servidor",
+          text: resultado.motivo,
+          actions: [{ label: "Tentar novamente", kind: "retry" }],
         },
       ]);
-    });
+      return;
+    }
+    setMessages((m) => [
+      ...m,
+      {
+        role: "system",
+        tone: "save",
+        text: "Base de Conhecimento aprovada em compliance e enviada ao servidor com sucesso.",
+      },
+    ]);
+
   };
 
   const recomecarConversa = () => {
