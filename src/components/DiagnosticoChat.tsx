@@ -639,6 +639,64 @@ function validarRespostaUsuario(
   return { ok: true };
 }
 
+// Validação para mensagens de ajuste no modo atualização (sem pergunta fixa).
+// Rejeita ajustes vagos como "mudar tudo", "atualizar", "trocar nome", etc.
+const EXEMPLOS_AJUSTE_ATUALIZACAO = [
+  "Atualizar política de reembolso de 5 para 7 dias úteis",
+  "Adicionar diferencial: atendimento humano 24h via WhatsApp",
+  "Mudar tom de voz para mais informal, tratando o cliente por 'você'",
+  "Trocar horário comercial para 9h às 19h, segunda a sábado",
+  "Incluir nova FAQ: 'Vocês emitem nota fiscal?' — Sim, em até 24h após o pagamento.",
+];
+
+function validarAjusteUsuario(texto: string): ValidacaoResposta {
+  const t = texto.trim();
+  const exemplos = EXEMPLOS_AJUSTE_ATUALIZACAO;
+  if (!t) return { ok: false, motivo: "A mensagem está vazia.", exemplos };
+
+  const norm = t.toLowerCase().replace(/[.!?;:,]/g, "").trim();
+
+  // Genéricas absolutas
+  const genericasAjuste = new Set([
+    ...RESPOSTAS_GENERICAS,
+    "atualizar","atualiza","mudar","muda","trocar","troca","alterar","altera",
+    "corrigir","ajustar","editar","modificar","melhorar","arrumar","revisar",
+    "mudar tudo","atualizar tudo","trocar tudo","mudar isso","atualizar isso",
+    "mudar prompt","atualizar prompt","editar prompt","reescrever",
+  ]);
+  if (genericasAjuste.has(norm)) {
+    return {
+      ok: false,
+      motivo: `"${t}" não diz **o que** deve ser alterado nem **qual o novo valor**.`,
+      exemplos,
+    };
+  }
+
+  // Muito curto sem contexto (≤3 palavras e <20 chars)
+  const palavras = norm.split(/\s+/).filter(Boolean);
+  if (palavras.length <= 3 && norm.length < 20) {
+    return {
+      ok: false,
+      motivo: `A mensagem "${t}" é muito curta e não descreve a alteração com clareza.`,
+      exemplos,
+    };
+  }
+
+  // Verbo de ajuste sem objeto claro (ex.: "mudar política", "trocar nome")
+  const verbosAjuste = /^(atualizar|mudar|trocar|alterar|corrigir|ajustar|editar|modificar|melhorar|revisar|reescrever)\b/i;
+  if (verbosAjuste.test(norm) && palavras.length <= 4) {
+    return {
+      ok: false,
+      motivo:
+        "Você indicou que quer alterar algo, mas não disse **para qual novo valor**. Descreva o que deve passar a constar.",
+      exemplos,
+    };
+  }
+
+  return { ok: true };
+}
+
+
 
 // ---------- Geração do PROMPT organizado da persona ----------
 function gerarPromptPersona(
