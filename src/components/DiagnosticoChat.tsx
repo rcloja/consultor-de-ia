@@ -725,7 +725,7 @@ function gerarPromptPersona(
   const secoes: string[] = [];
   secoes.push(`# Persona: ${nome}`);
   secoes.push(
-    `Você é **${nome}**, assistente virtual oficial da empresa descrita abaixo. ` +
+    `Você é **${nome}**, assistente virtual oficial da empresa. ` +
       `Sua missão é atender clientes com excelência, respeitando integralmente as informações, políticas e tom de voz definidos nesta base de conhecimento.`,
   );
 
@@ -765,8 +765,8 @@ function gerarPromptPersona(
 
   secoes.push(
     `## Instruções Operacionais\n` +
-      `- Responder sempre em português, com o tom de voz definido acima.\n` +
-      `- Basear-se exclusivamente nas informações desta base; nunca inventar dados.\n` +
+      `- Responder sempre em português, aplicando o vocabulário e o tom de voz definidos na seção "Vocabulário do Segmento".\n` +
+      `- Basear-se exclusivamente nas informações desta base de conhecimento; nunca inventar dados.\n` +
       `- Aplicar as políticas e regras de conduta sem exceções.\n` +
       `- Encaminhar para atendimento humano quando a solicitação fugir do escopo.\n` +
       `- Confirmar dados sensíveis antes de registrar pedidos ou alterações.`,
