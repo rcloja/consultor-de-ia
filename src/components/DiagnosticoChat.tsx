@@ -368,47 +368,8 @@ function limparEstadoSalvo() {
   try { localStorage.removeItem(STORAGE_KEY); } catch { /* noop */ }
 }
 
-const TXT_MARKER = "===ATENDENTEAI_PROGRESSO_V1===";
-
-function exportarProgressoTxt(state: PersistedState) {
-  const cabecalho = [
-    "AtendenteAI — Progresso do Arquiteto de Conhecimento IA",
-    `Salvo em: ${new Date(state.updatedAt).toLocaleString("pt-BR")}`,
-    `ID da conversa: ${state.conversationId}`,
-    "",
-    "IMPORTANTE: NÃO edite o conteúdo abaixo da linha marcadora.",
-    "Para retomar, abra o chat e clique em 'Importar progresso' e selecione este arquivo.",
-    "",
-    TXT_MARKER,
-  ].join("\n");
-  const blob = new Blob(
-    [cabecalho + "\n" + JSON.stringify(state)],
-    { type: "text/plain;charset=utf-8" },
-  );
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  const stamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
-  a.download = `atendenteai-progresso-${stamp}.txt`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-}
-
-async function importarProgressoTxt(file: File): Promise<PersistedState | null> {
-  const txt = await file.text();
-  const idx = txt.indexOf(TXT_MARKER);
-  if (idx === -1) return null;
-  const json = txt.slice(idx + TXT_MARKER.length).trim();
-  try {
-    const parsed = JSON.parse(json) as PersistedState;
-    if (!parsed || !Array.isArray(parsed.messages)) return null;
-    return parsed;
-  } catch {
-    return null;
-  }
-}
+// Geração/importação de .txt removida — progresso é enviado apenas via POST
+// (auto-save e botão "Salvar") para o endpoint do consultor.
 
 async function enviarParcialCriacao(
   conversationId: string,
@@ -736,7 +697,7 @@ export const DiagnosticoChat = ({ open, onClose, promptId }: Props) => {
 
   const [salvandoParcial, setSalvandoParcial] = useState(false);
   const [ultimoSalvamento, setUltimoSalvamento] = useState<Date | null>(null);
-  const importInputRef = useRef<HTMLInputElement>(null);
+  
 
   // Snapshot sempre atualizado para os listeners de unload/visibility.
   const snapshotRef = useRef<PersistedState | null>(null);
@@ -824,7 +785,6 @@ export const DiagnosticoChat = ({ open, onClose, promptId }: Props) => {
     setSalvandoParcial(true);
     try {
       const r = await enviarParcialCriacao(conversationIdRef.current, snap);
-      exportarProgressoTxt(snap);
       if (!r.ok) {
         setMessages((m) => [
           ...m,
@@ -834,7 +794,7 @@ export const DiagnosticoChat = ({ open, onClose, promptId }: Props) => {
             title: "Progresso não enviado ao servidor",
             text:
               (r.motivo ?? "Falha desconhecida.") +
-              " O arquivo .txt local foi gerado normalmente — use-o para retomar depois.",
+              " Tente novamente em instantes — seu progresso continua salvo neste navegador.",
           },
         ]);
       } else {
@@ -844,7 +804,7 @@ export const DiagnosticoChat = ({ open, onClose, promptId }: Props) => {
             role: "system",
             tone: "save",
             text:
-              "Progresso enviado ao servidor e arquivo .txt baixado. Você pode fechar a página e voltar depois — neste navegador o progresso volta sozinho; em outro dispositivo, importe o arquivo .txt salvo.",
+              "Progresso enviado ao servidor. Você pode fechar a página e voltar depois — neste navegador o progresso volta sozinho.",
           },
         ]);
       }
@@ -853,44 +813,8 @@ export const DiagnosticoChat = ({ open, onClose, promptId }: Props) => {
     }
   };
 
-  const handleImportarProgresso = async (file: File) => {
-    const parsed = await importarProgressoTxt(file);
-    if (!parsed) {
-      setMessages((m) => [
-        ...m,
-        {
-          role: "system",
-          tone: "error",
-          title: "Arquivo inválido",
-          text: "Não consegui ler o arquivo de progresso. Verifique se é o .txt original gerado pelo botão 'Salvar progresso'.",
-        },
-      ]);
-      return;
-    }
-    conversationIdRef.current = parsed.conversationId || conversationIdRef.current;
-    historyRef.current = Array.isArray(parsed.history) ? parsed.history : [];
-    enviadoFinalRef.current = !!parsed.enviadoFinal;
-    setMessages(parsed.messages);
-    setBase(parsed.base ?? {});
-    setLacunas(parsed.lacunas ?? []);
-    setStep(parsed.step ?? 0);
-    setFinalizado(!!parsed.finalizado);
-    setShowBase(!!parsed.showBase);
-    setNotasAjuste(parsed.notasAjuste ?? []);
-    setForcarCriacao(!!parsed.forcarCriacao);
-    setPrefillStage(parsed.prefillStage ?? "done");
-    setPrefillUrl(parsed.prefillUrl ?? "");
-    setPrefillSummary(parsed.prefillSummary ?? "");
-    setPrefillSources(parsed.prefillSources ?? []);
-    setMessages((m) => [
-      ...m,
-      {
-        role: "system",
-        tone: "save",
-        text: `Progresso restaurado a partir do arquivo (salvo em ${new Date(parsed.updatedAt).toLocaleString("pt-BR")}).`,
-      },
-    ]);
-  };
+  // Importação de progresso via .txt foi removida — o progresso é mantido
+  // automaticamente neste navegador e enviado via POST a cada auto-save/salvar.
 
 
   const iniciarPerguntasAposPrefill = (baseAtual: Record<string, string[]>) => {
@@ -1581,32 +1505,13 @@ export const DiagnosticoChat = ({ open, onClose, promptId }: Props) => {
             <div className="flex items-center gap-1">
               {!modoAtualizacao && (
                 <>
-                  <input
-                    ref={importInputRef}
-                    type="file"
-                    accept=".txt,text/plain"
-                    className="hidden"
-                    onChange={(e) => {
-                      const f = e.target.files?.[0];
-                      if (f) void handleImportarProgresso(f);
-                      if (importInputRef.current) importInputRef.current.value = "";
-                    }}
-                  />
-                  <button
-                    onClick={() => importInputRef.current?.click()}
-                    className="p-2 rounded-xl hover:bg-secondary transition text-muted-foreground"
-                    aria-label="Importar progresso"
-                    title="Importar progresso (.txt)"
-                  >
-                    <Upload className="w-3.5 h-3.5" />
-                  </button>
                   {(messages.length > 0 || Object.keys(base).length > 0) && (
                     <button
                       onClick={handleSalvarProgresso}
                       disabled={salvandoParcial}
                       className="px-2.5 py-1.5 rounded-xl hover:bg-secondary transition text-xs flex items-center gap-1 text-muted-foreground disabled:opacity-50"
                       aria-label="Salvar progresso"
-                      title="Salvar progresso (envia e baixa .txt)"
+                      title="Salvar progresso (envia ao servidor)"
                     >
                       {salvandoParcial ? (
                         <Loader2 className="w-3.5 h-3.5 animate-spin" />
