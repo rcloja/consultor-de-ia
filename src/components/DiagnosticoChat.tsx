@@ -1445,38 +1445,10 @@ export const DiagnosticoChat = ({ open, onClose, promptId, tokenMode = false }: 
       return;
     }
 
-    // MODO CRIAÇÃO: tenta restaurar progresso salvo no navegador.
-    const salvo = carregarEstadoSalvo();
-    if (salvo && (salvo.messages.length > 0 || Object.keys(salvo.base ?? {}).length > 0)) {
-      conversationIdRef.current = salvo.conversationId || conversationIdRef.current;
-      historyRef.current = Array.isArray(salvo.history) ? salvo.history : [];
-      enviadoFinalRef.current = !!salvo.enviadoFinal;
-      setMessages(salvo.messages);
-      setBase(salvo.base ?? {});
-      setLacunas(salvo.lacunas ?? []);
-      setStep(salvo.step ?? 0);
-      setFinalizado(!!salvo.finalizado);
-      setShowBase(!!salvo.showBase);
-      setNotasAjuste(salvo.notasAjuste ?? []);
-      setForcarCriacao(!!salvo.forcarCriacao);
-      setPrefillStage(salvo.prefillStage ?? "done");
-      setPrefillUrl(salvo.prefillUrl ?? "");
-      setPrefillSummary(salvo.prefillSummary ?? "");
-      setPrefillSources(salvo.prefillSources ?? []);
-      setPrefillFiles([]);
-      setPrefillError(null);
-      setMessages((m) => [
-        ...m,
-        {
-          role: "system",
-          tone: "info",
-          text: "Recuperei sua conversa de onde você parou. Continue de onde estava ou clique em 'Recomeçar' no topo.",
-        },
-      ]);
-      return;
-    }
-
-    // Sem progresso salvo — abre limpo.
+    // MODO CRIAÇÃO: NÃO restauramos nada do navegador.
+    // O backend é a única fonte de verdade. A sessão começa limpa em cada
+    // abertura/recarga; se houver implantação prévia, ela deve vir via
+    // promptId/tokenMode (modo atualização → GET no servidor).
     setMessages([]);
     setStep(0);
     setBase({});
@@ -1509,30 +1481,40 @@ export const DiagnosticoChat = ({ open, onClose, promptId, tokenMode = false }: 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, promptId]);
 
-  // Persiste estado da conversa (modo criação) a cada mudança relevante.
+  // Sincroniza estado com o backend (modo criação) a cada mudança relevante.
+  // Substitui a antiga persistência em localStorage: agora cada alteração
+  // do usuário dispara um POST (debounced) para o servidor, que é a única
+  // fonte de verdade da implantação.
   useEffect(() => {
     if (!open) return;
-    if (idValido && !forcarCriacao) return; // modo atualização não persiste localmente
+    if (idValido && !forcarCriacao) return; // modo atualização tem fluxo próprio
     if (messages.length === 0 && Object.keys(base).length === 0) return;
-    salvarEstado({
-      conversationId: conversationIdRef.current,
-      messages,
-      base,
-      lacunas,
-      step,
-      finalizado,
-      notasAjuste,
-      forcarCriacao,
-      prefillStage,
-      prefillUrl,
-      prefillSummary,
-      prefillSources,
-      showBase,
-      history: historyRef.current,
-      enviadoFinal: enviadoFinalRef.current,
-      updatedAt: Date.now(),
-    });
-    setUltimoSalvamento(new Date());
+    const handle = setTimeout(() => {
+      const snap: PersistedState = {
+        conversationId: conversationIdRef.current,
+        messages,
+        base,
+        lacunas,
+        step,
+        finalizado,
+        notasAjuste,
+        forcarCriacao,
+        prefillStage,
+        prefillUrl,
+        prefillSummary,
+        prefillSources,
+        showBase,
+        history: historyRef.current,
+        enviadoFinal: enviadoFinalRef.current,
+        updatedAt: Date.now(),
+      };
+      void enviarParcialCriacao(conversationIdRef.current, snap)
+        .then((r) => {
+          if (r.ok) setUltimoSalvamento(new Date());
+        })
+        .catch(() => { /* erro é tratado nos pontos de envio explícito */ });
+    }, 600);
+    return () => clearTimeout(handle);
   }, [
     open,
     idValido,
