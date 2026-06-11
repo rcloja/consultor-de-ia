@@ -776,7 +776,8 @@ export const DiagnosticoChat = ({ open, onClose, promptId, tokenMode = false }: 
       return;
     }
 
-    // 2) Liberado — envia ao servidor
+    // 2) Liberado — gera o PROMPT da persona e envia ao servidor
+    const promptPersona = gerarPromptPersona(baseFinal, notasAjuste);
     const resultado = await enviarBaseFinalCriacao(
       conversationIdRef.current,
       baseFinal,
@@ -787,6 +788,7 @@ export const DiagnosticoChat = ({ open, onClose, promptId, tokenMode = false }: 
         sources: prefillSources,
         summary: prefillSummary,
       },
+      promptPersona,
     );
     if (!resultado.ok) {
       // Libera retentativa
@@ -814,6 +816,14 @@ export const DiagnosticoChat = ({ open, onClose, promptId, tokenMode = false }: 
         role: "system",
         tone: "save",
         text: "Base de Conhecimento aprovada em compliance e enviada ao servidor com sucesso.",
+      },
+      {
+        role: "agent",
+        text:
+          "✅ Implantação concluída a 100%. Abaixo está o **PROMPT organizado da persona do agente** que foi gerado e enviado para o servidor. Você pode copiar este conteúdo e usá-lo como o system prompt do seu agente:\n\n" +
+          "```markdown\n" +
+          promptPersona +
+          "\n```",
       },
     ]);
 
