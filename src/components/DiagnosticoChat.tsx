@@ -753,7 +753,7 @@ function gerarPromptPersona(
     if (b) secoes.push(b);
   }
   // Inclui quaisquer chaves extras que venham da base (servidor/atualização)
-  const conhecidas = new Set<string>([...ordem.map(([k]) => k), "Nome do Agente"]);
+  const conhecidas = new Set<string>([...ordem.map(([k]) => k), "Nome do Agente", "Revisão"]);
   for (const [k, v] of Object.entries(base)) {
     if (conhecidas.has(k)) continue;
     const itens = (Array.isArray(v) ? v : [v as unknown as string])
@@ -2113,7 +2113,9 @@ export const DiagnosticoChat = ({ open, onClose, promptId, tokenMode = false }: 
 
     setMessages((m) => [...m, { role: "user", text }]);
     setInput("");
-    setBase((b) => ({ ...b, [pAtual.campo]: [...(b[pAtual.campo] ?? []), valorSalvo] }));
+    if (!ehRevisao) {
+      setBase((b) => ({ ...b, [pAtual.campo]: [...(b[pAtual.campo] ?? []), valorSalvo] }));
+    }
 
     const temLacuna = pAtual.lacunaSe?.(text);
     if (temLacuna && pAtual.lacunaMsg) {
@@ -2121,10 +2123,12 @@ export const DiagnosticoChat = ({ open, onClose, promptId, tokenMode = false }: 
     }
 
     setTimeout(() => {
-      setMessages((m) => [
-        ...m,
-        { role: "system", tone: "save", text: `Resposta salva em: ${pAtual.campo}.` },
-      ]);
+      if (!ehRevisao) {
+        setMessages((m) => [
+          ...m,
+          { role: "system", tone: "save", text: `Resposta salva em: ${pAtual.campo}.` },
+        ]);
+      }
 
       void pedirComentarioIA(text, {
         pergunta_atual: pAtual.texto,
