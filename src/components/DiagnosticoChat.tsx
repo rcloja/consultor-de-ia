@@ -1622,7 +1622,13 @@ export const DiagnosticoChat = ({ open, onClose, promptId, tokenMode = false }: 
     if (!open) return;
     if (idValido && !forcarCriacao) return; // modo atualização tem fluxo próprio
     if (messages.length === 0 && Object.keys(base).length === 0) return;
-    const handle = setTimeout(() => {
+    // Debounce: ao chegar uma nova alteração, cancela o timer anterior.
+    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    debounceTimerRef.current = setTimeout(() => {
+      debounceTimerRef.current = null;
+      // Snapshot construído DENTRO do timeout — captura o estado mais recente
+      // (último valor das closures), e o prompt_persona será regenerado a
+      // partir dele em enviarParcialCriacao.
       const snap: PersistedState = {
         conversationId: conversationIdRef.current,
         messages,
@@ -1641,13 +1647,27 @@ export const DiagnosticoChat = ({ open, onClose, promptId, tokenMode = false }: 
         enviadoFinal: enviadoFinalRef.current,
         updatedAt: Date.now(),
       };
-      void enviarParcialCriacao(conversationIdRef.current, snap)
+      // Aborta envio em voo (resultado obsoleto) e marca sequência.
+      if (saveAbortRef.current) {
+        try { saveAbortRef.current.abort(); } catch { /* noop */ }
+      }
+      const controller = new AbortController();
+      saveAbortRef.current = controller;
+      const mySeq = ++saveSeqRef.current;
+      void enviarParcialCriacao(conversationIdRef.current, snap, controller.signal)
         .then((r) => {
+          if (mySeq !== saveSeqRef.current) return; // descartado por envio mais novo
+          if (saveAbortRef.current === controller) saveAbortRef.current = null;
           if (r.ok) setUltimoSalvamento(new Date());
         })
         .catch(() => { /* erro é tratado nos pontos de envio explícito */ });
     }, 600);
-    return () => clearTimeout(handle);
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+        debounceTimerRef.current = null;
+      }
+    };
   }, [
     open,
     idValido,
