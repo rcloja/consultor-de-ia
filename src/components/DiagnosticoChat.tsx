@@ -306,6 +306,7 @@ async function enviarBaseAtualizada(
   base: Record<string, string[]>,
   lacunas: string[],
   notasAjuste: string[],
+  promptPersona: string,
 ): Promise<SendResult> {
   const payload = {
     origem: "pagina_implantacao_atendenteai",
@@ -316,6 +317,7 @@ async function enviarBaseAtualizada(
     base,
     lacunas,
     notas_de_ajuste: notasAjuste,
+    prompt_persona: promptPersona,
     timestamp: new Date().toISOString(),
   };
   const v = validarPayload(payload);
@@ -350,6 +352,7 @@ async function enviarBaseFinalCriacao(
   lacunas: string[],
   notasAjuste: string[],
   origemPrefill: { url?: string; sources: string[]; summary: string },
+  promptPersona: string,
 ): Promise<SendResult> {
   const payload = {
     origem: "pagina_implantacao_atendenteai",
@@ -361,6 +364,7 @@ async function enviarBaseFinalCriacao(
     lacunas,
     notas_de_ajuste: notasAjuste,
     prefill: origemPrefill,
+    prompt_persona: promptPersona,
     timestamp: new Date().toISOString(),
   };
   const v = validarPayload(payload);
@@ -496,6 +500,71 @@ const CAMPOS_BASE = [
   "Fluxo de Atendimento",
   "Regras do Agente",
 ];
+
+// ---------- Geração do PROMPT organizado da persona ----------
+function gerarPromptPersona(
+  base: Record<string, string[]>,
+  notasAjuste: string[] = [],
+): string {
+  const nome = derivarNomeAgente(base);
+  const get = (k: string) =>
+    (base[k] ?? []).map((s) => (s ?? "").trim()).filter(Boolean);
+  const bloco = (titulo: string, itens: string[]) =>
+    itens.length ? `## ${titulo}\n${itens.map((i) => `- ${i}`).join("\n")}` : "";
+
+  const secoes: string[] = [];
+  secoes.push(`# Persona: ${nome}`);
+  secoes.push(
+    `Você é **${nome}**, assistente virtual oficial da empresa descrita abaixo. ` +
+      `Sua missão é atender clientes com excelência, respeitando integralmente as informações, políticas e tom de voz definidos nesta base de conhecimento.`,
+  );
+
+  const ordem: Array<[string, string]> = [
+    ["Empresa", "Sobre a Empresa"],
+    ["Público-Alvo", "Público-Alvo"],
+    ["Produtos", "Produtos"],
+    ["Serviços", "Serviços"],
+    ["Diferenciais", "Diferenciais Competitivos"],
+    ["Processo Comercial", "Processo Comercial"],
+    ["Fluxo de Atendimento", "Fluxo de Atendimento"],
+    ["FAQ", "Perguntas Frequentes"],
+    ["Objeções", "Objeções e Respostas"],
+    ["Políticas", "Políticas e Regras"],
+    ["Casos de Sucesso", "Casos de Sucesso"],
+    ["Termos do Segmento", "Vocabulário do Segmento"],
+    ["Regras do Agente", "Regras de Conduta do Agente"],
+  ];
+  for (const [chave, titulo] of ordem) {
+    const b = bloco(titulo, get(chave));
+    if (b) secoes.push(b);
+  }
+  // Inclui quaisquer chaves extras que venham da base (servidor/atualização)
+  const conhecidas = new Set<string>([...ordem.map(([k]) => k), "Nome do Agente"]);
+  for (const [k, v] of Object.entries(base)) {
+    if (conhecidas.has(k)) continue;
+    const itens = (Array.isArray(v) ? v : [v as unknown as string])
+      .map((s) => (typeof s === "string" ? s.trim() : ""))
+      .filter(Boolean);
+    const b = bloco(k, itens);
+    if (b) secoes.push(b);
+  }
+
+  secoes.push(
+    `## Instruções Operacionais\n` +
+      `- Responder sempre em português, com o tom de voz definido acima.\n` +
+      `- Basear-se exclusivamente nas informações desta base; nunca inventar dados.\n` +
+      `- Aplicar as políticas e regras de conduta sem exceções.\n` +
+      `- Encaminhar para atendimento humano quando a solicitação fugir do escopo.\n` +
+      `- Confirmar dados sensíveis antes de registrar pedidos ou alterações.`,
+  );
+
+  const notas = notasAjuste.map((n) => n.trim()).filter(Boolean);
+  if (notas.length) {
+    secoes.push(bloco("Ajustes Recentes (prioritários)", notas));
+  }
+
+  return secoes.filter(Boolean).join("\n\n");
+}
 
 export const DiagnosticoChat = ({ open, onClose, promptId, tokenMode = false }: Props) => {
   // Validação defensiva: mesmo padrão da landing — 6 a 64 chars [A-Za-z0-9_-].
@@ -707,7 +776,8 @@ export const DiagnosticoChat = ({ open, onClose, promptId, tokenMode = false }: 
       return;
     }
 
-    // 2) Liberado — envia ao servidor
+    // 2) Liberado — gera o PROMPT da persona e envia ao servidor
+    const promptPersona = gerarPromptPersona(baseFinal, notasAjuste);
     const resultado = await enviarBaseFinalCriacao(
       conversationIdRef.current,
       baseFinal,
@@ -718,6 +788,7 @@ export const DiagnosticoChat = ({ open, onClose, promptId, tokenMode = false }: 
         sources: prefillSources,
         summary: prefillSummary,
       },
+      promptPersona,
     );
     if (!resultado.ok) {
       // Libera retentativa
@@ -745,6 +816,14 @@ export const DiagnosticoChat = ({ open, onClose, promptId, tokenMode = false }: 
         role: "system",
         tone: "save",
         text: "Base de Conhecimento aprovada em compliance e enviada ao servidor com sucesso.",
+      },
+      {
+        role: "agent",
+        text:
+          "✅ Implantação concluída a 100%. Abaixo está o **PROMPT organizado da persona do agente** que foi gerado e enviado para o servidor. Você pode copiar este conteúdo e usá-lo como o system prompt do seu agente:\n\n" +
+          "```markdown\n" +
+          promptPersona +
+          "\n```",
       },
     ]);
 
@@ -1071,18 +1150,28 @@ export const DiagnosticoChat = ({ open, onClose, promptId, tokenMode = false }: 
       setBase(resultado.base);
       setLacunas(resultado.lacunas);
       setShowBase(true);
+      const promptAtual = gerarPromptPersona(resultado.base, []);
       setMessages((m) => [
         ...m,
         { role: "system", tone: "save", text: "Base de Conhecimento carregada com sucesso." },
         {
           role: "agent",
           text:
-            'Revise abaixo o que já está cadastrado. Me diga, em mensagens, o que deseja atualizar (ex.: "Atualizar política de reembolso para 7 dias" ou "Adicionar novo diferencial: atendimento 24h"). Quando terminar, clique em "Concluir atualização" e eu envio tudo de volta.',
+            "Este é o **PROMPT atual da persona do agente**, gerado a partir da base já cadastrada:\n\n" +
+            "```markdown\n" +
+            promptAtual +
+            "\n```",
+        },
+        {
+          role: "agent",
+          text:
+            'Qual alteração você gostaria de fazer no prompt? Descreva em uma mensagem (ex.: "Mudar o tom de voz para mais informal", "Atualizar política de reembolso para 7 dias", "Adicionar novo diferencial: atendimento 24h"). A cada mensagem eu atualizo o prompt e mostro a versão revisada. Quando estiver pronto, clique em "Concluir atualização" para enviar.',
         },
       ]);
       inputRef.current?.focus();
       return;
     }
+
 
     if (resultado.status === "notfound") {
       setMessages((m) => [
@@ -1291,13 +1380,16 @@ export const DiagnosticoChat = ({ open, onClose, promptId, tokenMode = false }: 
     if (!text || finalizado) return;
     setMessages((m) => [...m, { role: "user", text }]);
     setInput("");
-    setNotasAjuste((n) => [...n, text]);
+    const novasNotas = [...notasAjuste, text];
+    setNotasAjuste(novasNotas);
     // Heurística simples: se mencionar nome de uma seção conhecida, anexa lá também.
     const lower = text.toLowerCase();
     const secao = CAMPOS_BASE.find((c) => lower.includes(c.toLowerCase()));
-    if (secao) {
-      setBase((b) => ({ ...b, [secao]: [...(b[secao] ?? []), text] }));
-    }
+    const baseAtualizada: Record<string, string[]> = secao
+      ? { ...base, [secao]: [...(base[secao] ?? []), text] }
+      : base;
+    if (secao) setBase(baseAtualizada);
+    const promptRevisado = gerarPromptPersona(baseAtualizada, novasNotas);
     setTimeout(() => {
       setMessages((m) => [
         ...m,
@@ -1306,8 +1398,17 @@ export const DiagnosticoChat = ({ open, onClose, promptId, tokenMode = false }: 
           tone: "save",
           text: secao ? `Ajuste registrado em: ${secao}.` : "Ajuste registrado nas notas de atualização.",
         },
+        {
+          role: "agent",
+          text:
+            "Aqui está o **prompt revisado** com a sua alteração aplicada:\n\n" +
+            "```markdown\n" +
+            promptRevisado +
+            "\n```\n\nSe quiser fazer mais ajustes, é só me dizer. Quando estiver pronto, clique em **Concluir atualização**.",
+        },
       ]);
     }, 350);
+
     void pedirComentarioIA(text, {
       tipo: "ajuste_em_atualizacao",
       secao_detectada: secao ?? null,
@@ -1371,7 +1472,14 @@ export const DiagnosticoChat = ({ open, onClose, promptId, tokenMode = false }: 
       return;
     }
 
-    const resultadoUpd = await enviarBaseAtualizada(promptId, base, lacunas, notasAjuste);
+    const promptPersonaAtualizado = gerarPromptPersona(base, notasAjuste);
+    const resultadoUpd = await enviarBaseAtualizada(
+      promptId,
+      base,
+      lacunas,
+      notasAjuste,
+      promptPersonaAtualizado,
+    );
     setEnviandoUpdate(false);
     if (!resultadoUpd.ok) {
       setMessages((m) => [
@@ -1397,7 +1505,11 @@ export const DiagnosticoChat = ({ open, onClose, promptId, tokenMode = false }: 
       {
         role: "agent",
         text:
-          "Pronto! As alterações foram aprovadas em compliance e enviadas para o servidor. Sua Base de Conhecimento foi atualizada com sucesso.",
+          "Pronto! As alterações foram aprovadas em compliance e enviadas para o servidor. Sua Base de Conhecimento foi atualizada com sucesso.\n\n" +
+          "Abaixo está o **PROMPT atualizado da persona do agente** que foi enviado ao servidor:\n\n" +
+          "```markdown\n" +
+          promptPersonaAtualizado +
+          "\n```",
       },
     ]);
   };
