@@ -1216,6 +1216,60 @@ export const DiagnosticoChat = ({ open, onClose, promptId }: Props) => {
   const handleConcluirUpdate = async () => {
     if (!promptId) return;
     setEnviandoUpdate(true);
+
+    // Compliance check obrigatório também na atualização
+    setMessages((m) => [
+      ...m,
+      { role: "system", tone: "info", text: "Verificando políticas de uso (compliance)…" },
+    ]);
+    let compliance: ComplianceCheckResult | null = null;
+    try {
+      compliance = await runComplianceCheck({
+        tenant_id: getAgenteExterno(),
+        agent_id: promptId,
+        conversation_id: conversationIdRef.current,
+        trigger_event: "atualizacao_finalizada",
+        payload: {
+          base,
+          mensagens_automaticas: notasAjuste.join("\n"),
+          produtos_servicos: (base["Produtos e serviços"] ?? []).join("\n"),
+        },
+      });
+    } catch (e) {
+      console.error("Falha compliance update:", e);
+      setEnviandoUpdate(false);
+      setMessages((m) => [
+        ...m,
+        {
+          role: "system",
+          tone: "error",
+          title: "Não foi possível verificar compliance",
+          text: "A verificação obrigatória falhou. Tente novamente — o envio só ocorre após a aprovação.",
+        },
+      ]);
+      return;
+    }
+
+    if (compliance.decision !== "liberado") {
+      setEnviandoUpdate(false);
+      setMessages((m) => [
+        ...m,
+        {
+          role: "system",
+          tone: compliance.decision === "bloqueado" ? "error" : "gap",
+          title:
+            compliance.decision === "bloqueado"
+              ? `Atualização bloqueada (risco ${compliance.risk_level.toUpperCase()})`
+              : `Aguardando revisão humana (risco ${compliance.risk_level.toUpperCase()})`,
+          text:
+            compliance.decision === "bloqueado"
+              ? MSG_BLOQUEIO_CRITICO
+              : MSG_REVISAO_HUMANA,
+        },
+      ]);
+      return;
+    }
+
     await enviarBaseAtualizada(promptId, base, lacunas, notasAjuste);
     setEnviandoUpdate(false);
     setFinalizado(true);
@@ -1224,7 +1278,7 @@ export const DiagnosticoChat = ({ open, onClose, promptId }: Props) => {
       {
         role: "agent",
         text:
-          "Pronto! As alterações foram enviadas para o servidor com o seu identificador. Sua Base de Conhecimento foi atualizada com sucesso.",
+          "Pronto! As alterações foram aprovadas em compliance e enviadas para o servidor. Sua Base de Conhecimento foi atualizada com sucesso.",
       },
     ]);
   };
