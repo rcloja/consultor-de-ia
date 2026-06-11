@@ -1602,6 +1602,7 @@ export const DiagnosticoChat = ({ open, onClose, promptId, tokenMode = false }: 
       : base;
     if (secao) setBase(baseAtualizada);
     const promptRevisado = gerarPromptPersona(baseAtualizada, novasNotas);
+    void promptRevisado; // gerado para uso interno/compliance; não exibido ao usuário
     setTimeout(() => {
       setMessages((m) => [
         ...m,
@@ -1613,10 +1614,7 @@ export const DiagnosticoChat = ({ open, onClose, promptId, tokenMode = false }: 
         {
           role: "agent",
           text:
-            "Aqui está o **prompt revisado** com a sua alteração aplicada:\n\n" +
-            "```markdown\n" +
-            promptRevisado +
-            "\n```\n\nSe quiser fazer mais ajustes, é só me dizer. Quando estiver pronto, clique em **Concluir atualização**.",
+            "Alteração registrada. Se quiser fazer mais ajustes, é só me dizer qual seção e o novo conteúdo. Quando estiver pronto, clique em **Concluir atualização**.",
         },
       ]);
     }, 350);
