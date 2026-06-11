@@ -1002,10 +1002,7 @@ export const DiagnosticoChat = ({ open, onClose, promptId, tokenMode = false }: 
       {
         role: "agent",
         text:
-          "✅ Implantação concluída a 100%. Abaixo está o **PROMPT organizado da persona do agente** que foi gerado e enviado para o servidor. Você pode copiar este conteúdo e usá-lo como o system prompt do seu agente:\n\n" +
-          "```markdown\n" +
-          promptPersona +
-          "\n```",
+          "✅ Implantação concluída a 100%. A persona do agente foi organizada internamente e enviada para o servidor. Se precisar ajustar alguma informação, é só me dizer.",
       },
     ]);
 
@@ -1329,23 +1326,35 @@ export const DiagnosticoChat = ({ open, onClose, promptId, tokenMode = false }: 
     if (resultado.status === "ok") {
       setBase(resultado.base);
       setLacunas(resultado.lacunas);
-      setShowBase(true);
-      const promptAtual = gerarPromptPersona(resultado.base, []);
+      setShowBase(false);
+
+      // Mede o quanto da base já está preenchido. Se 0% (nenhum campo com conteúdo),
+      // alterna para o fluxo de criação para perguntar nome do agente, site e materiais
+      // em vez de perguntar "o que deseja atualizar".
+      const totalItens = Object.values(resultado.base).reduce(
+        (acc, arr) => acc + (Array.isArray(arr) ? arr.filter((v) => (v ?? "").toString().trim().length > 0).length : 0),
+        0,
+      );
+      if (totalItens === 0) {
+        setMessages((m) => [
+          ...m,
+          {
+            role: "system",
+            tone: "info",
+            text: "Nenhuma informação cadastrada ainda nesta base (0% preenchida). Vamos começar do início.",
+          },
+        ]);
+        iniciarModoCriacao(false);
+        return;
+      }
+
       setMessages((m) => [
         ...m,
         { role: "system", tone: "save", text: "Base de Conhecimento carregada com sucesso." },
         {
           role: "agent",
           text:
-            "Este é o **PROMPT atual da persona do agente**, gerado a partir da base já cadastrada:\n\n" +
-            "```markdown\n" +
-            promptAtual +
-            "\n```",
-        },
-        {
-          role: "agent",
-          text:
-            'Qual alteração você gostaria de fazer no prompt? Descreva em uma mensagem (ex.: "Mudar o tom de voz para mais informal", "Atualizar política de reembolso para 7 dias", "Adicionar novo diferencial: atendimento 24h"). A cada mensagem eu atualizo o prompt e mostro a versão revisada. Quando estiver pronto, clique em "Concluir atualização" para enviar.',
+            'Qual informação você gostaria de atualizar? Descreva em uma mensagem indicando a seção e o novo conteúdo (ex.: "Mudar o tom de voz para mais informal", "Atualizar política de reembolso para 7 dias", "Adicionar novo diferencial: atendimento 24h"). A cada mensagem eu registro a alteração. Quando estiver pronto, clique em "Concluir atualização" para enviar.',
         },
       ]);
       inputRef.current?.focus();
@@ -1593,6 +1602,7 @@ export const DiagnosticoChat = ({ open, onClose, promptId, tokenMode = false }: 
       : base;
     if (secao) setBase(baseAtualizada);
     const promptRevisado = gerarPromptPersona(baseAtualizada, novasNotas);
+    void promptRevisado; // gerado para uso interno/compliance; não exibido ao usuário
     setTimeout(() => {
       setMessages((m) => [
         ...m,
@@ -1604,10 +1614,7 @@ export const DiagnosticoChat = ({ open, onClose, promptId, tokenMode = false }: 
         {
           role: "agent",
           text:
-            "Aqui está o **prompt revisado** com a sua alteração aplicada:\n\n" +
-            "```markdown\n" +
-            promptRevisado +
-            "\n```\n\nSe quiser fazer mais ajustes, é só me dizer. Quando estiver pronto, clique em **Concluir atualização**.",
+            "Alteração registrada. Se quiser fazer mais ajustes, é só me dizer qual seção e o novo conteúdo. Quando estiver pronto, clique em **Concluir atualização**.",
         },
       ]);
     }, 350);
@@ -1708,11 +1715,7 @@ export const DiagnosticoChat = ({ open, onClose, promptId, tokenMode = false }: 
       {
         role: "agent",
         text:
-          "Pronto! As alterações foram aprovadas em compliance e enviadas para o servidor. Sua Base de Conhecimento foi atualizada com sucesso.\n\n" +
-          "Abaixo está o **PROMPT atualizado da persona do agente** que foi enviado ao servidor:\n\n" +
-          "```markdown\n" +
-          promptPersonaAtualizado +
-          "\n```",
+          "Pronto! As alterações foram aprovadas em compliance e enviadas para o servidor. Sua Base de Conhecimento foi atualizada com sucesso.",
       },
     ]);
   };
@@ -2110,7 +2113,7 @@ export const DiagnosticoChat = ({ open, onClose, promptId, tokenMode = false }: 
               />
             )}
 
-            {showBase && <BasePreview base={base} lacunas={lacunas} />}
+            {/* Prévia da Base de Conhecimento removida: o prompt e a estrutura interna não são mais exibidos ao usuário para manter o foco no diálogo com o consultor. */}
           </div>
 
           <div className="p-3 border-t border-border bg-card space-y-2">
