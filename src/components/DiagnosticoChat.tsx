@@ -10,6 +10,11 @@ import {
   MSG_BLOQUEIO_CRITICO,
   type ComplianceCheckResult,
 } from "@/lib/compliance";
+import {
+  validarPayload,
+  interpretarResposta,
+  type RespostaInterpretada,
+} from "@/lib/payloadValidation";
 
 const AGENT_ID = "arquiteto-conhecimento-ia";
 
@@ -129,6 +134,17 @@ interface Props {
 // endpoint ou criar um proxy/backend intermediário. Usamos no-cors como fallback no POST.
 // O GET precisa de CORS liberado para conseguir LER a resposta — sem isso a base
 // existente não poderá ser carregada no navegador do cliente.
+export interface SendResult {
+  ok: boolean;
+  motivo?: string;
+  etapa?: "validacao" | "rede" | "resposta";
+  resposta?: RespostaInterpretada;
+}
+
+// NOTA: Caso o servidor bloqueie por CORS, será necessário liberar CORS no
+// endpoint ou criar um proxy/backend intermediário. Usamos no-cors como fallback no POST.
+// O GET precisa de CORS liberado para conseguir LER a resposta — sem isso a base
+// existente não poderá ser carregada no navegador do cliente.
 async function enviarPerguntaParaServidor(
   pergunta: string,
   etapaAtual: string,
@@ -136,29 +152,37 @@ async function enviarPerguntaParaServidor(
   totalEtapas: number,
   progressoPercentual: number,
   promptId?: string | null,
-) {
+): Promise<SendResult> {
+  const payload = {
+    origem: "pagina_implantacao_atendenteai",
+    agente: "Arquiteto de Conhecimento IA",
+    funcao: "Consultor de Implantação de IA",
+    agente_externo: getAgenteExterno(),
+    modo: promptId ? "atualizacao" : "criacao",
+    prompt_id: promptId ?? null,
+    etapa_atual: etapaAtual,
+    numero_etapa: numeroEtapa,
+    total_etapas: totalEtapas,
+    progresso_percentual: progressoPercentual,
+    pergunta,
+    timestamp: new Date().toISOString(),
+  };
+  const v = validarPayload(payload);
+  if (!v.ok) {
+    console.warn("Payload inválido (pergunta):", v.motivo);
+    return { ok: false, motivo: v.motivo ?? "Payload inválido.", etapa: "validacao" };
+  }
   try {
     await fetch(ENDPOINT, {
       method: "POST",
       mode: "no-cors",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        origem: "pagina_implantacao_atendenteai",
-        agente: "Arquiteto de Conhecimento IA",
-        funcao: "Consultor de Implantação de IA",
-        agente_externo: getAgenteExterno(),
-        modo: promptId ? "atualizacao" : "criacao",
-        prompt_id: promptId ?? null,
-        etapa_atual: etapaAtual,
-        numero_etapa: numeroEtapa,
-        total_etapas: totalEtapas,
-        progresso_percentual: progressoPercentual,
-        pergunta,
-        timestamp: new Date().toISOString(),
-      }),
+      body: JSON.stringify(payload),
     });
+    return { ok: true };
   } catch (error) {
     console.error("Erro ao enviar pergunta para o servidor:", error);
+    return { ok: false, motivo: "Falha de rede ao registrar a pergunta no servidor.", etapa: "rede" };
   }
 }
 
@@ -177,9 +201,6 @@ async function carregarBaseExistente(id: string): Promise<LoadResult> {
       headers: { Accept: "application/json" },
     });
   } catch (e) {
-    // fetch() lançando TypeError geralmente indica bloqueio de CORS,
-    // falha de rede, DNS, ou o servidor não respondeu com cabeçalho
-    // Access-Control-Allow-Origin para a origem atual.
     const detail = e instanceof Error ? e.message : String(e);
     console.error("Falha de rede/CORS ao carregar base existente:", e);
     return { status: "cors", detail };
@@ -218,27 +239,42 @@ async function enviarBaseAtualizada(
   base: Record<string, string[]>,
   lacunas: string[],
   notasAjuste: string[],
-) {
+): Promise<SendResult> {
+  const payload = {
+    origem: "pagina_implantacao_atendenteai",
+    agente: "Arquiteto de Conhecimento IA",
+    agente_externo: getAgenteExterno(),
+    modo: "atualizacao_finalizada",
+    prompt_id: promptId,
+    base,
+    lacunas,
+    notas_de_ajuste: notasAjuste,
+    timestamp: new Date().toISOString(),
+  };
+  const v = validarPayload(payload);
+  if (!v.ok) return { ok: false, motivo: v.motivo ?? "Payload inválido.", etapa: "validacao" };
+
+  let resp: Response;
   try {
-    await fetch(ENDPOINT, {
+    resp = await fetch(ENDPOINT, {
       method: "POST",
-      mode: "no-cors",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        origem: "pagina_implantacao_atendenteai",
-        agente: "Arquiteto de Conhecimento IA",
-        agente_externo: getAgenteExterno(),
-        modo: "atualizacao_finalizada",
-        prompt_id: promptId,
-        base,
-        lacunas,
-        notas_de_ajuste: notasAjuste,
-        timestamp: new Date().toISOString(),
-      }),
+      body: JSON.stringify(payload),
     });
   } catch (e) {
     console.error("Erro ao enviar base atualizada:", e);
+    return {
+      ok: false,
+      etapa: "rede",
+      motivo:
+        "Não foi possível contatar o servidor para enviar a atualização (falha de rede ou CORS). Verifique sua conexão e tente novamente.",
+    };
   }
+  const interpretada = await interpretarResposta(resp);
+  if (!interpretada.ok) {
+    return { ok: false, etapa: "resposta", motivo: interpretada.motivo ?? "Resposta inválida do servidor." };
+  }
+  return { ok: true, resposta: interpretada };
 }
 
 async function enviarBaseFinalCriacao(
@@ -247,28 +283,43 @@ async function enviarBaseFinalCriacao(
   lacunas: string[],
   notasAjuste: string[],
   origemPrefill: { url?: string; sources: string[]; summary: string },
-) {
+): Promise<SendResult> {
+  const payload = {
+    origem: "pagina_implantacao_atendenteai",
+    agente: "Arquiteto de Conhecimento IA",
+    agente_externo: getAgenteExterno(),
+    modo: "criacao_finalizada",
+    conversation_id: conversationId,
+    base,
+    lacunas,
+    notas_de_ajuste: notasAjuste,
+    prefill: origemPrefill,
+    timestamp: new Date().toISOString(),
+  };
+  const v = validarPayload(payload);
+  if (!v.ok) return { ok: false, motivo: v.motivo ?? "Payload inválido.", etapa: "validacao" };
+
+  let resp: Response;
   try {
-    await fetch(ENDPOINT, {
+    resp = await fetch(ENDPOINT, {
       method: "POST",
-      mode: "no-cors",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        origem: "pagina_implantacao_atendenteai",
-        agente: "Arquiteto de Conhecimento IA",
-        agente_externo: getAgenteExterno(),
-        modo: "criacao_finalizada",
-        conversation_id: conversationId,
-        base,
-        lacunas,
-        notas_de_ajuste: notasAjuste,
-        prefill: origemPrefill,
-        timestamp: new Date().toISOString(),
-      }),
+      body: JSON.stringify(payload),
     });
   } catch (e) {
     console.error("Erro ao enviar base final (criação):", e);
+    return {
+      ok: false,
+      etapa: "rede",
+      motivo:
+        "Não foi possível contatar o servidor para finalizar a criação (falha de rede ou CORS). Verifique sua conexão e tente novamente.",
+    };
   }
+  const interpretada = await interpretarResposta(resp);
+  if (!interpretada.ok) {
+    return { ok: false, etapa: "resposta", motivo: interpretada.motivo ?? "Resposta inválida do servidor." };
+  }
+  return { ok: true, resposta: interpretada };
 }
 
 // ---------- Persistência local (sobrevive a fechar a página) ----------
@@ -362,35 +413,43 @@ async function importarProgressoTxt(file: File): Promise<PersistedState | null> 
 async function enviarParcialCriacao(
   conversationId: string,
   state: PersistedState,
-) {
+): Promise<SendResult> {
+  const payload = {
+    origem: "pagina_implantacao_atendenteai",
+    agente: "Arquiteto de Conhecimento IA",
+    agente_externo: getAgenteExterno(),
+    modo: "criacao_parcial",
+    conversation_id: conversationId,
+    base: state.base,
+    lacunas: state.lacunas,
+    notas_de_ajuste: state.notasAjuste,
+    etapa_atual_idx: state.step,
+    finalizado: state.finalizado,
+    prefill: {
+      url: state.prefillUrl,
+      sources: state.prefillSources,
+      summary: state.prefillSummary,
+    },
+    timestamp: new Date(state.updatedAt).toISOString(),
+  };
+  const v = validarPayload(payload);
+  if (!v.ok) {
+    return { ok: false, motivo: v.motivo ?? "Payload inválido.", etapa: "validacao" };
+  }
   try {
     await fetch(ENDPOINT, {
       method: "POST",
       mode: "no-cors",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        origem: "pagina_implantacao_atendenteai",
-        agente: "Arquiteto de Conhecimento IA",
-        agente_externo: getAgenteExterno(),
-        modo: "criacao_parcial",
-        conversation_id: conversationId,
-        base: state.base,
-        lacunas: state.lacunas,
-        notas_de_ajuste: state.notasAjuste,
-        etapa_atual_idx: state.step,
-        finalizado: state.finalizado,
-        prefill: {
-          url: state.prefillUrl,
-          sources: state.prefillSources,
-          summary: state.prefillSummary,
-        },
-        timestamp: new Date(state.updatedAt).toISOString(),
-      }),
+      body: JSON.stringify(payload),
     });
+    return { ok: true };
   } catch (e) {
     console.error("Erro ao enviar progresso parcial:", e);
+    return { ok: false, motivo: "Falha de rede ao salvar o progresso no servidor.", etapa: "rede" };
   }
 }
+
 
 
 const CAMPOS_BASE = [
@@ -606,7 +665,7 @@ export const DiagnosticoChat = ({ open, onClose, promptId }: Props) => {
     }
 
     // 2) Liberado — envia ao servidor
-    void enviarBaseFinalCriacao(
+    const resultado = await enviarBaseFinalCriacao(
       conversationIdRef.current,
       baseFinal,
       lacunasFinal,
@@ -616,16 +675,36 @@ export const DiagnosticoChat = ({ open, onClose, promptId }: Props) => {
         sources: prefillSources,
         summary: prefillSummary,
       },
-    ).then(() => {
+    );
+    if (!resultado.ok) {
+      // Libera retentativa
+      enviadoFinalRef.current = false;
       setMessages((m) => [
         ...m,
         {
           role: "system",
-          tone: "save",
-          text: "Base de Conhecimento aprovada em compliance e enviada ao servidor com sucesso.",
+          tone: "error",
+          title:
+            resultado.etapa === "validacao"
+              ? "Envio bloqueado — dados inválidos"
+              : resultado.etapa === "rede"
+                ? "Falha de comunicação com o servidor"
+                : "Resposta inválida do servidor",
+          text: resultado.motivo,
+          actions: [{ label: "Tentar novamente", kind: "retry" }],
         },
       ]);
-    });
+      return;
+    }
+    setMessages((m) => [
+      ...m,
+      {
+        role: "system",
+        tone: "save",
+        text: "Base de Conhecimento aprovada em compliance e enviada ao servidor com sucesso.",
+      },
+    ]);
+
   };
 
   const recomecarConversa = () => {
@@ -744,17 +823,31 @@ export const DiagnosticoChat = ({ open, onClose, promptId }: Props) => {
     setUltimoSalvamento(new Date());
     setSalvandoParcial(true);
     try {
-      await enviarParcialCriacao(conversationIdRef.current, snap);
+      const r = await enviarParcialCriacao(conversationIdRef.current, snap);
       exportarProgressoTxt(snap);
-      setMessages((m) => [
-        ...m,
-        {
-          role: "system",
-          tone: "save",
-          text:
-            "Progresso enviado ao servidor e arquivo .txt baixado. Você pode fechar a página e voltar depois — neste navegador o progresso volta sozinho; em outro dispositivo, importe o arquivo .txt salvo.",
-        },
-      ]);
+      if (!r.ok) {
+        setMessages((m) => [
+          ...m,
+          {
+            role: "system",
+            tone: "error",
+            title: "Progresso não enviado ao servidor",
+            text:
+              (r.motivo ?? "Falha desconhecida.") +
+              " O arquivo .txt local foi gerado normalmente — use-o para retomar depois.",
+          },
+        ]);
+      } else {
+        setMessages((m) => [
+          ...m,
+          {
+            role: "system",
+            tone: "save",
+            text:
+              "Progresso enviado ao servidor e arquivo .txt baixado. Você pode fechar a página e voltar depois — neste navegador o progresso volta sozinho; em outro dispositivo, importe o arquivo .txt salvo.",
+          },
+        ]);
+      }
     } finally {
       setSalvandoParcial(false);
     }
@@ -1270,8 +1363,26 @@ export const DiagnosticoChat = ({ open, onClose, promptId }: Props) => {
       return;
     }
 
-    await enviarBaseAtualizada(promptId, base, lacunas, notasAjuste);
+    const resultadoUpd = await enviarBaseAtualizada(promptId, base, lacunas, notasAjuste);
     setEnviandoUpdate(false);
+    if (!resultadoUpd.ok) {
+      setMessages((m) => [
+        ...m,
+        {
+          role: "system",
+          tone: "error",
+          title:
+            resultadoUpd.etapa === "validacao"
+              ? "Atualização bloqueada — dados inválidos"
+              : resultadoUpd.etapa === "rede"
+                ? "Falha de comunicação com o servidor"
+                : "Resposta inválida do servidor",
+          text: resultadoUpd.motivo ?? "Não foi possível atualizar a Base de Conhecimento.",
+          actions: [{ label: "Tentar novamente", kind: "retry" }],
+        },
+      ]);
+      return;
+    }
     setFinalizado(true);
     setMessages((m) => [
       ...m,
