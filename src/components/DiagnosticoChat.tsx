@@ -733,6 +733,9 @@ export const DiagnosticoChat = ({ open, onClose, promptId, tokenMode = false }: 
   const conversationIdRef = useRef<string>(gerarConversationId());
   const historyRef = useRef<ImplantadorChatHistoryItem[]>([]);
   const enviadoFinalRef = useRef<boolean>(false);
+  // Tentativas inválidas por pergunta (step) — após 2, oferecemos opções comuns
+  // e na próxima a resposta é aceita para não travar o usuário.
+  const tentativasInvRef = useRef<Record<number, number>>({});
 
 
   // Reinicia a conversa a cada abertura do chat
