@@ -1690,7 +1690,52 @@ export const DiagnosticoChat = ({ open, onClose, promptId, tokenMode = false }: 
 
     // Perguntas opcionais aceitam termos de "pular" — salvamos string vazia
     // e o nome final é derivado depois (ex.: "Agente <Empresa>").
-    const valorSalvo = pAtual.opcional && SKIP_REGEX.test(text) ? "" : text;
+    const ehPular = pAtual.opcional && SKIP_REGEX.test(text);
+    const valorSalvo = ehPular ? "" : text;
+
+    // ---------- VALIDAÇÃO OBRIGATÓRIA DE RESPOSTA ----------
+    // Não avança se a resposta for genérica/vaga. Após 2 tentativas inválidas,
+    // oferecemos opções comuns; na 3ª, aceitamos para não travar o usuário.
+    const ehRevisao = pAtual.campo === "Revisão";
+    if (!ehPular && !ehRevisao) {
+      const tentativasPrevias = tentativasInvRef.current[step] ?? 0;
+      if (tentativasPrevias < 2) {
+        const v = validarRespostaUsuario(text, pAtual);
+        if (!v.ok) {
+          tentativasInvRef.current[step] = tentativasPrevias + 1;
+          setMessages((m) => [...m, { role: "user", text }]);
+          setInput("");
+          const proximaTentativa = tentativasPrevias + 1;
+          const ofereceOpcoes = proximaTentativa >= 2;
+          const exemplosTxt = v.exemplos.length
+            ? "\n\nExemplos válidos para esta pergunta:\n" +
+              v.exemplos.map((e) => `• ${e}`).join("\n")
+            : "";
+          const opcoesTxt = ofereceOpcoes
+            ? "\n\nNão consegui identificar claramente. Selecione a opção mais próxima do seu negócio (ou descreva em uma frase completa):\n" +
+              OPCOES_GENERICAS_NEGOCIO.map((o, i) => `${i + 1}. ${o}`).join("\n")
+            : "";
+          setTimeout(() => {
+            setMessages((m) => [
+              ...m,
+              {
+                role: "system",
+                tone: "gap",
+                title: "Preciso de mais detalhes",
+                text:
+                  `${v.motivo} Para configurar corretamente o seu agente, preciso de uma resposta específica e suficiente.` +
+                  exemplosTxt +
+                  opcoesTxt +
+                  `\n\n**Pergunta:** ${pAtual.texto}`,
+              },
+            ]);
+          }, 300);
+          return;
+        }
+      }
+      // Aceita após 2 tentativas inválidas — zera o contador para próxima pergunta
+      tentativasInvRef.current[step] = 0;
+    }
 
     setMessages((m) => [...m, { role: "user", text }]);
     setInput("");
