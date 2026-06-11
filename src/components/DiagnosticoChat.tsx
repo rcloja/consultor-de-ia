@@ -4,6 +4,12 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { chamarImplantadorAi, type ImplantadorChatHistoryItem } from "@/lib/implantadorAi";
 import { chamarPrefill, extractTextFromFile, type PrefillDoc } from "@/lib/prefill";
+import {
+  runComplianceCheck,
+  MSG_REVISAO_HUMANA,
+  MSG_BLOQUEIO_CRITICO,
+  type ComplianceCheckResult,
+} from "@/lib/compliance";
 
 const AGENT_ID = "arquiteto-conhecimento-ia";
 
