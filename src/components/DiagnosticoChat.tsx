@@ -558,9 +558,17 @@ export const DiagnosticoChat = ({ open, onClose, promptId, tokenMode = false }: 
   const numeroEtapa = modoAtualizacao ? ETAPAS.length : (PERGUNTAS[etapaIdxAtual]?.etapaIdx ?? 0) + 1;
   const progresso = modoAtualizacao ? 100 : Math.round((step / TOTAL) * 100);
 
-  const completude = Math.round(
-    (CAMPOS_BASE.filter((c) => (base[c]?.length ?? 0) > 0).length / CAMPOS_BASE.length) * 100,
-  );
+  // Completude: considera tanto os campos canônicos (CAMPOS_BASE) quanto
+  // quaisquer chaves extras que vierem do servidor — assim uma base carregada
+  // com nomes ligeiramente diferentes ainda reflete progresso real.
+  const camposParaCompletude = Array.from(new Set([...CAMPOS_BASE, ...Object.keys(base)]));
+  const completude = camposParaCompletude.length === 0
+    ? 0
+    : Math.round(
+        (camposParaCompletude.filter((c) => (base[c]?.length ?? 0) > 0).length /
+          camposParaCompletude.length) *
+          100,
+      );
 
   const proximaPerguntaPendente = (fromIdx: number, currentBase: Record<string, string[]>): number => {
     for (let i = fromIdx; i < TOTAL; i++) {
