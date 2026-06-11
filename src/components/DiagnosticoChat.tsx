@@ -2194,6 +2194,25 @@ export const DiagnosticoChat = ({ open, onClose, promptId, tokenMode = false }: 
           <div className="p-3 border-t border-border bg-card space-y-2">
             <div className="flex items-end gap-2">
               <input
+                ref={attachInputRef}
+                type="file"
+                multiple
+                accept=".pdf,.docx,.md,.txt,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/markdown,text/plain"
+                onChange={(e) => enviarArquivosAvulsos(e.target.files)}
+                className="hidden"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                title="Anexar arquivos (PDF, DOCX, MD, TXT)"
+                onClick={() => attachInputRef.current?.click()}
+                disabled={finalizado || carregandoBase || enviandoArquivosAvulsos || (!modoAtualizacao && (prefillStage === "processing" || prefillStage === "form"))}
+                className="rounded-2xl h-12 w-12 shrink-0"
+              >
+                {enviandoArquivosAvulsos ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+              </Button>
+              <input
                 ref={inputRef}
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
