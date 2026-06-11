@@ -1607,9 +1607,9 @@ export const DiagnosticoChat = ({ open, onClose, promptId, tokenMode = false }: 
             {
               role: "system",
               tone: "gap",
-              title: "Preciso de mais detalhes para aplicar a alteração",
+              title: "Ajuste incompleto — especifique campo e novo conteúdo",
               text:
-                `${motivoInv} Para atualizar o prompt corretamente preciso saber **o que** alterar e **qual o novo conteúdo**.` +
+                `${motivoInv}\n\nPara aplicar, envie: (1) a seção que deseja alterar e (2) o novo texto completo.` +
                 exemplosTxt +
                 opcoesTxt,
             },
