@@ -73,12 +73,18 @@ const ETAPAS = [
 const curta = (r: string) => r.trim().split(/\s+/).length < 4;
 
 const PERGUNTAS: Pergunta[] = [
+  {
+    texto:
+      "Antes de tudo, como você gostaria de chamar o seu agente de IA? (Opcional — se preferir, digite 'pular' e usaremos 'Agente <nome da sua empresa>', por exemplo 'Agente Colombo'.)",
+    etapaIdx: 0,
+    campo: "Nome do Agente",
+    opcional: true,
+  },
   { texto: "Para começarmos, qual é o nome da sua empresa e em qual segmento ela atua?", etapaIdx: 0, campo: "Empresa" },
   { texto: "Há quanto tempo sua empresa está no mercado e qual região você atende?", etapaIdx: 0, campo: "Empresa" },
-  { texto: "Quem é o principal público que sua empresa atende hoje?", etapaIdx: 0, campo: "Público-Alvo", lacunaSe: curta, lacunaMsg: "Não definiu público-alvo com clareza" },
+  { texto: "Quem é o principal público que sua empresa atende hoje? (descreva quem são, faixa etária, nível cultural, hábitos e o que costumam buscar)", etapaIdx: 0, campo: "Público-Alvo", lacunaSe: curta, lacunaMsg: "Não definiu público-alvo com clareza" },
   { texto: "Quais são os principais produtos ou serviços que sua empresa oferece?", etapaIdx: 1, campo: "Produtos" },
   { texto: "Existe algum produto ou serviço que você considera o mais importante ou mais vendido?", etapaIdx: 1, campo: "Produtos" },
-  { texto: "Qual é o ticket médio aproximado dos seus clientes?", etapaIdx: 1, campo: "Serviços" },
   { texto: "Como os clientes normalmente chegam até sua empresa?", etapaIdx: 2, campo: "Processo Comercial" },
   { texto: "Como acontece o atendimento desde o primeiro contato até a venda?", etapaIdx: 2, campo: "Processo Comercial" },
   { texto: "Depois que o cliente compra, existe algum processo de acompanhamento ou pós-venda?", etapaIdx: 2, campo: "Processo Comercial", lacunaSe: curta, lacunaMsg: "Processo de pós-venda precisa de mais detalhes" },
