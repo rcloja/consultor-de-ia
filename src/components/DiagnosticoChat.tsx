@@ -1012,7 +1012,7 @@ export const DiagnosticoChat = ({ open, onClose, promptId, tokenMode = false }: 
   };
 
   const recomecarConversa = () => {
-    limparEstadoSalvo();
+    // Sem persistência local: backend é a única fonte de verdade.
     enviadoFinalRef.current = false;
     conversationIdRef.current = gerarConversationId();
     historyRef.current = [];
