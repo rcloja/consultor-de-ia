@@ -87,6 +87,7 @@ const Index = () => {
 
   const openChat = () => {
     setPromptId(null); // criação nova
+    setTokenMode(false);
     setIdErro(null);
     setChatOpen(true);
   };
@@ -98,6 +99,7 @@ const Index = () => {
       return;
     }
     setIdErro(null);
+    setTokenMode(false);
     setPromptId(v.valor);
     setChatOpen(true);
   };
