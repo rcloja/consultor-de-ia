@@ -491,6 +491,57 @@ const CAMPOS_BASE = [
   "Regras do Agente",
 ];
 
+// Aliases textuais para cada seção canônica. Permite que o usuário use
+// nomes alternativos (ex.: "vocabulário do segmento" → "Termos do Segmento")
+// ao pedir alteração/remoção, e ainda assim acertarmos a seção correta.
+const ALIASES_SECAO: Record<string, string[]> = {
+  "Nome do Agente": ["nome do agente", "nome da ia", "nome do bot", "nome do assistente"],
+  Empresa: ["empresa", "sobre a empresa", "sobre nos", "negocio"],
+  Produtos: ["produtos", "produto"],
+  Serviços: ["servicos", "servico"],
+  "Público-Alvo": ["publico alvo", "publico-alvo", "publico", "persona", "personas", "clientes ideais"],
+  "Processo Comercial": ["processo comercial", "funil", "funil de vendas", "jornada de compra", "etapas comerciais"],
+  FAQ: ["faq", "perguntas frequentes", "duvidas frequentes"],
+  Objeções: ["objecoes", "objecao", "respostas a objecoes"],
+  Diferenciais: ["diferenciais", "diferenciais competitivos", "vantagens"],
+  Políticas: ["politicas", "politicas e regras", "regras da empresa"],
+  "Casos de Sucesso": ["casos de sucesso", "cases", "depoimentos"],
+  "Termos do Segmento": [
+    "termos do segmento",
+    "termos do seguimento",
+    "vocabulario do segmento",
+    "vocabulario do seguimento",
+    "vocabulario",
+    "glossario",
+    "jargao",
+    "girias",
+  ],
+  "Fluxo de Atendimento": ["fluxo de atendimento", "fluxo", "atendimento"],
+  "Regras do Agente": ["regras do agente", "regras de conduta", "regras de conduta do agente", "conduta do agente"],
+};
+
+const normalizarTextoBusca = (s: string) =>
+  s
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+const detectarSecaoPorTexto = (texto: string): string | null => {
+  const t = normalizarTextoBusca(texto);
+  let melhor: { secao: string; len: number } | null = null;
+  for (const [canon, aliases] of Object.entries(ALIASES_SECAO)) {
+    for (const a of aliases) {
+      const an = normalizarTextoBusca(a);
+      if (an && t.includes(an) && (!melhor || an.length > melhor.len)) {
+        melhor = { secao: canon, len: an.length };
+      }
+    }
+  }
+  return melhor?.secao ?? null;
+};
+
 // ---------- Validação obrigatória de respostas do usuário ----------
 const RESPOSTAS_GENERICAS = new Set([
   "geral","gerais","todos","todas","qualquer","qualquer pessoa","qualquer um","qualquer uma",
@@ -1906,10 +1957,41 @@ export const DiagnosticoChat = ({ open, onClose, promptId, tokenMode = false }: 
     }
 
     let baseAtualizada: Record<string, string[]> = base;
-    let secaoDetectada: string | null = null;
+    let secaoDetectada: string | null = detectarSecaoPorTexto(text);
     const removidos: { secao: string; trecho: string }[] = [];
+    let substituido = false;
 
-    if (intentRemocao && alvo && alvo.length >= 3) {
+    // ---------- INTENÇÃO DE SUBSTITUIÇÃO ----------
+    // Padrões: "altere/substitua/troque/mude ... para/por/com: <novo>"
+    // Quando há seção detectada, substitui o conteúdo daquela seção pelo novo.
+    const intentSubstituicao =
+      /\b(substitu(ir|a|i)|altere|alterar|alterando|troc(ar|a|ue|o)|mud(ar|e|a|o)|atualiz(ar|e|a|o)|corrij(a|ir)|corrige|reescrev(er|a|e))\b/i.test(
+        text,
+      );
+    if (intentSubstituicao && !intentRemocao && secaoDetectada) {
+      // Captura o "novo conteúdo" após para/por/com/:
+      let novo = "";
+      const mPara = text.match(/\b(?:para|por|com)\s*:?\s*(.{2,})$/i);
+      const mDoisP = text.match(/:\s*(.{2,})$/);
+      if (mPara) novo = mPara[1].trim();
+      else if (mDoisP) novo = mDoisP[1].trim();
+      novo = novo.replace(/^["“”'`«»\s\-–—]+|["“”'`«»\s\-–—.,;!?]+$/g, "").trim();
+      if (novo && novo.length >= 2) {
+        // Quebra por vírgulas/;/quebras de linha em itens (mantém aspas internas).
+        const itensNovos = novo
+          .split(/\s*(?:;|\n|·)\s*|\s*,\s+/)
+          .map((s) => s.trim())
+          .filter((s) => s.length >= 2);
+        baseAtualizada = {
+          ...base,
+          [secaoDetectada]: itensNovos.length > 0 ? itensNovos : [novo],
+        };
+        setBase(baseAtualizada);
+        substituido = true;
+      }
+    }
+
+    if (!substituido && intentRemocao && alvo && alvo.length >= 3) {
       const alvoNorm = norm(alvo);
       const reAlvo = new RegExp(
         alvo.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
@@ -1918,6 +2000,11 @@ export const DiagnosticoChat = ({ open, onClose, promptId, tokenMode = false }: 
       const novaBase: Record<string, string[]> = {};
       for (const [k, itens] of Object.entries(base)) {
         const arr = Array.isArray(itens) ? itens : [];
+        // Se o usuário indicou uma seção, restringimos a remoção a ela.
+        if (secaoDetectada && k !== secaoDetectada) {
+          novaBase[k] = arr.slice();
+          continue;
+        }
         const out: string[] = [];
         for (const it of arr) {
           const itStr = typeof it === "string" ? it : String(it ?? "");
@@ -1938,28 +2025,40 @@ export const DiagnosticoChat = ({ open, onClose, promptId, tokenMode = false }: 
       if (removidos.length > 0) {
         baseAtualizada = novaBase;
         setBase(novaBase);
+      } else if (secaoDetectada) {
+        // Usuário pediu remoção genérica numa seção sem indicar trecho:
+        // limpamos a seção inteira.
+        const limpa = { ...base, [secaoDetectada]: [] };
+        baseAtualizada = limpa;
+        setBase(limpa);
+        removidos.push({ secao: secaoDetectada, trecho: "(seção limpa)" });
       }
     }
 
-    // Se NÃO foi remoção (ou não encontramos o alvo), mantém o comportamento
-    // anterior: heurística de seção e anexar como novo conteúdo.
-    if (removidos.length === 0) {
-      const lower = text.toLowerCase();
-      const secao = CAMPOS_BASE.find((c) => lower.includes(c.toLowerCase()));
+    // Se NÃO foi remoção/substituição (ou não encontramos o alvo), mantém o
+    // comportamento anterior: heurística de seção e anexar como novo conteúdo.
+    if (!substituido && removidos.length === 0) {
+      const secao =
+        secaoDetectada ??
+        CAMPOS_BASE.find((c) => text.toLowerCase().includes(c.toLowerCase())) ??
+        null;
       if (secao && !intentRemocao) {
         baseAtualizada = { ...base, [secao]: [...(base[secao] ?? []), text] };
         secaoDetectada = secao;
         setBase(baseAtualizada);
       } else {
-        secaoDetectada = secao ?? null;
+        secaoDetectada = secao;
       }
     }
+
 
     const promptRevisado = gerarPromptPersona(baseAtualizada, novasNotas);
     void promptRevisado; // gerado para uso interno/compliance; não exibido ao usuário
     setTimeout(() => {
       let msgTxt: string;
-      if (removidos.length > 0) {
+      if (substituido && secaoDetectada) {
+        msgTxt = `Conteúdo de "${secaoDetectada}" substituído pelo novo texto.`;
+      } else if (removidos.length > 0) {
         const secs = Array.from(new Set(removidos.map((r) => r.secao))).join(", ");
         msgTxt = `Trecho removido de: ${secs}.`;
       } else if (secaoDetectada) {
