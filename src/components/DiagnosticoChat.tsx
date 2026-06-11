@@ -134,9 +134,12 @@ interface Props {
 // endpoint ou criar um proxy/backend intermediário. Usamos no-cors como fallback no POST.
 // O GET precisa de CORS liberado para conseguir LER a resposta — sem isso a base
 // existente não poderá ser carregada no navegador do cliente.
-export type SendResult =
-  | { ok: true; resposta?: RespostaInterpretada }
-  | { ok: false; motivo: string; etapa: "validacao" | "rede" | "resposta" };
+export interface SendResult {
+  ok: boolean;
+  motivo?: string;
+  etapa?: "validacao" | "rede" | "resposta";
+  resposta?: RespostaInterpretada;
+}
 
 // NOTA: Caso o servidor bloqueie por CORS, será necessário liberar CORS no
 // endpoint ou criar um proxy/backend intermediário. Usamos no-cors como fallback no POST.
