@@ -365,6 +365,7 @@ async function enviarParcialCriacao(
       body: JSON.stringify({
         origem: "pagina_implantacao_atendenteai",
         agente: "Arquiteto de Conhecimento IA",
+        agente_externo: getAgenteExterno(),
         modo: "criacao_parcial",
         conversation_id: conversationId,
         base: state.base,
