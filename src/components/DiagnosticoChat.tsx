@@ -1823,6 +1823,7 @@ export const DiagnosticoChat = ({ open, onClose, promptId }: Props) => {
 };
 
 const SECOES_FINAIS = [
+  "Nome do Agente",
   "Empresa",
   "Produtos",
   "Serviços",
