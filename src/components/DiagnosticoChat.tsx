@@ -1975,7 +1975,7 @@ export const DiagnosticoChat = ({ open, onClose, promptId, tokenMode = false }: 
                   {(messages.length > 0 || Object.keys(base).length > 0) && (
                     <button
                       onClick={() => {
-                        if (confirm("Recomeçar a conversa? O progresso salvo neste navegador será apagado.")) {
+                        if (confirm("Recomeçar a conversa? A sessão atual será descartada.")) {
                           recomecarConversa();
                         }
                       }}
