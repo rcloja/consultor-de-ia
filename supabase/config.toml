@@ -1,1 +1,8 @@
-project_id = "mpvslenznhslqajgvfqw"
+[functions.implantador-chat]
+verify_jwt = false
+
+[functions.implantador-prefill]
+verify_jwt = false
+
+[functions.compliance-check]
+verify_jwt = false
