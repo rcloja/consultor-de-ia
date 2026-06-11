@@ -2056,7 +2056,9 @@ export const DiagnosticoChat = ({ open, onClose, promptId, tokenMode = false }: 
     void promptRevisado; // gerado para uso interno/compliance; não exibido ao usuário
     setTimeout(() => {
       let msgTxt: string;
-      if (removidos.length > 0) {
+      if (substituido && secaoDetectada) {
+        msgTxt = `Conteúdo de "${secaoDetectada}" substituído pelo novo texto.`;
+      } else if (removidos.length > 0) {
         const secs = Array.from(new Set(removidos.map((r) => r.secao))).join(", ");
         msgTxt = `Trecho removido de: ${secs}.`;
       } else if (secaoDetectada) {
