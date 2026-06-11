@@ -814,7 +814,7 @@ export const DiagnosticoChat = ({ open, onClose, promptId }: Props) => {
       ]);
       setFinalizado(true);
       setShowBase(true);
-      finalizarCriacaoCompleta(baseAtual, lacunas);
+      void finalizarCriacaoCompleta(baseAtual, lacunas);
       return;
     }
     setMessages((m) => [
