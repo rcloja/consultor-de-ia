@@ -148,6 +148,12 @@ interface Props {
    *  - ao concluir, faz POST de volta com o mesmo ID
    */
   promptId?: string | null;
+  /**
+   * Quando true, o `promptId` é tratado como TOKEN do agente externo
+   * (originado de `?agente=...` ao abrir pelo botão do AtendenteAI).
+   * O GET de carregamento usa `?token=...` em vez de `?id=...`.
+   */
+  tokenMode?: boolean;
 }
 
 // NOTA: Caso o servidor bloqueie por CORS, será necessário liberar CORS no
