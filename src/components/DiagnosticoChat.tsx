@@ -117,24 +117,26 @@ const ENDPOINT = "https://admin.atendenteai.com.br/api/consultor.php";
  * Lê o ID do agente externo passado via query string (?agente=...).
  * Esse ID é gerado no painel do cliente e usado para atrelar a base
  * de conhecimento construída aqui ao agente correspondente no banco dele.
- * Persiste em sessionStorage para sobreviver a navegações/reloads dentro da SPA.
+ *
+ * IMPORTANTE: NÃO persistimos esse valor em localStorage/sessionStorage.
+ * O backend é a única fonte de verdade — o ID vem sempre da URL.
+ * Mantemos apenas uma referência em memória (módulo) enquanto a aba está aberta,
+ * para suportar navegações internas da SPA que removam o query param.
  */
+let __agenteExternoMem: string | null = null;
 function getAgenteExterno(): string | null {
   try {
     if (typeof window === "undefined") return null;
     const url = new URL(window.location.href);
     const fromUrl = url.searchParams.get("agente");
     if (fromUrl && fromUrl.trim()) {
-      const v = fromUrl.trim().slice(0, 128);
-      try { sessionStorage.setItem("agente_externo_id", v); } catch { /* noop */ }
-      return v;
+      __agenteExternoMem = fromUrl.trim().slice(0, 128);
+      return __agenteExternoMem;
     }
-    try {
-      const cached = sessionStorage.getItem("agente_externo_id");
-      if (cached) return cached;
-    } catch { /* noop */ }
-  } catch { /* noop */ }
-  return null;
+    return __agenteExternoMem;
+  } catch {
+    return __agenteExternoMem;
+  }
 }
 
 interface Props {
@@ -394,7 +396,9 @@ async function enviarBaseFinalCriacao(
 }
 
 // ---------- Persistência local (sobrevive a fechar a página) ----------
-const STORAGE_KEY = "diagnostico_chat_state_v1";
+// Sem persistência local: o backend é a ÚNICA fonte de verdade.
+// Mantemos a interface PersistedState apenas como contrato em memória
+// (snapshot usado nas chamadas POST). Nenhum dado é gravado no navegador.
 
 interface PersistedState {
   conversationId: string;
@@ -413,30 +417,6 @@ interface PersistedState {
   history: ImplantadorChatHistoryItem[];
   enviadoFinal?: boolean;
   updatedAt: number;
-}
-
-function carregarEstadoSalvo(): PersistedState | null {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as PersistedState;
-    if (!parsed || !Array.isArray(parsed.messages)) return null;
-    return parsed;
-  } catch {
-    return null;
-  }
-}
-
-function salvarEstado(state: PersistedState) {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  } catch {
-    /* quota / privacidade */
-  }
-}
-
-function limparEstadoSalvo() {
-  try { localStorage.removeItem(STORAGE_KEY); } catch { /* noop */ }
 }
 
 // Geração/importação de .txt removida — progresso é enviado apenas via POST
@@ -1032,7 +1012,7 @@ export const DiagnosticoChat = ({ open, onClose, promptId, tokenMode = false }: 
   };
 
   const recomecarConversa = () => {
-    limparEstadoSalvo();
+    // Sem persistência local: backend é a única fonte de verdade.
     enviadoFinalRef.current = false;
     conversationIdRef.current = gerarConversationId();
     historyRef.current = [];
@@ -1081,9 +1061,7 @@ export const DiagnosticoChat = ({ open, onClose, promptId, tokenMode = false }: 
     const enviarBeacon = () => {
       const s = snapshotRef.current;
       if (!s || !temConteudo()) return;
-      try {
-        salvarEstado(s);
-      } catch { /* noop */ }
+      // Sem persistência local: enviamos somente via beacon ao backend.
       try {
         const payload = JSON.stringify({
           origem: "pagina_implantacao_atendenteai",
@@ -1143,7 +1121,7 @@ export const DiagnosticoChat = ({ open, onClose, promptId, tokenMode = false }: 
   const handleSalvarProgresso = async () => {
     if (salvandoParcial) return;
     const snap = snapshotAtual();
-    salvarEstado(snap);
+    // Sem persistência local — POST é o único canal de salvamento.
     setUltimoSalvamento(new Date());
     setSalvandoParcial(true);
     try {
@@ -1157,7 +1135,7 @@ export const DiagnosticoChat = ({ open, onClose, promptId, tokenMode = false }: 
             title: "Progresso não enviado ao servidor",
             text:
               (r.motivo ?? "Falha desconhecida.") +
-              " Tente novamente em instantes — seu progresso continua salvo neste navegador.",
+              " Tente novamente em instantes — o progresso só é salvo quando o servidor confirmar.",
           },
         ]);
       } else {
@@ -1167,7 +1145,7 @@ export const DiagnosticoChat = ({ open, onClose, promptId, tokenMode = false }: 
             role: "system",
             tone: "save",
             text:
-              "Progresso enviado ao servidor. Você pode fechar a página e voltar depois — neste navegador o progresso volta sozinho.",
+              "Progresso salvo no servidor. Ao reabrir esta página, suas respostas serão recuperadas diretamente do backend.",
           },
         ]);
       }
@@ -1467,38 +1445,10 @@ export const DiagnosticoChat = ({ open, onClose, promptId, tokenMode = false }: 
       return;
     }
 
-    // MODO CRIAÇÃO: tenta restaurar progresso salvo no navegador.
-    const salvo = carregarEstadoSalvo();
-    if (salvo && (salvo.messages.length > 0 || Object.keys(salvo.base ?? {}).length > 0)) {
-      conversationIdRef.current = salvo.conversationId || conversationIdRef.current;
-      historyRef.current = Array.isArray(salvo.history) ? salvo.history : [];
-      enviadoFinalRef.current = !!salvo.enviadoFinal;
-      setMessages(salvo.messages);
-      setBase(salvo.base ?? {});
-      setLacunas(salvo.lacunas ?? []);
-      setStep(salvo.step ?? 0);
-      setFinalizado(!!salvo.finalizado);
-      setShowBase(!!salvo.showBase);
-      setNotasAjuste(salvo.notasAjuste ?? []);
-      setForcarCriacao(!!salvo.forcarCriacao);
-      setPrefillStage(salvo.prefillStage ?? "done");
-      setPrefillUrl(salvo.prefillUrl ?? "");
-      setPrefillSummary(salvo.prefillSummary ?? "");
-      setPrefillSources(salvo.prefillSources ?? []);
-      setPrefillFiles([]);
-      setPrefillError(null);
-      setMessages((m) => [
-        ...m,
-        {
-          role: "system",
-          tone: "info",
-          text: "Recuperei sua conversa de onde você parou. Continue de onde estava ou clique em 'Recomeçar' no topo.",
-        },
-      ]);
-      return;
-    }
-
-    // Sem progresso salvo — abre limpo.
+    // MODO CRIAÇÃO: NÃO restauramos nada do navegador.
+    // O backend é a única fonte de verdade. A sessão começa limpa em cada
+    // abertura/recarga; se houver implantação prévia, ela deve vir via
+    // promptId/tokenMode (modo atualização → GET no servidor).
     setMessages([]);
     setStep(0);
     setBase({});
@@ -1531,30 +1481,40 @@ export const DiagnosticoChat = ({ open, onClose, promptId, tokenMode = false }: 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, promptId]);
 
-  // Persiste estado da conversa (modo criação) a cada mudança relevante.
+  // Sincroniza estado com o backend (modo criação) a cada mudança relevante.
+  // Substitui a antiga persistência em localStorage: agora cada alteração
+  // do usuário dispara um POST (debounced) para o servidor, que é a única
+  // fonte de verdade da implantação.
   useEffect(() => {
     if (!open) return;
-    if (idValido && !forcarCriacao) return; // modo atualização não persiste localmente
+    if (idValido && !forcarCriacao) return; // modo atualização tem fluxo próprio
     if (messages.length === 0 && Object.keys(base).length === 0) return;
-    salvarEstado({
-      conversationId: conversationIdRef.current,
-      messages,
-      base,
-      lacunas,
-      step,
-      finalizado,
-      notasAjuste,
-      forcarCriacao,
-      prefillStage,
-      prefillUrl,
-      prefillSummary,
-      prefillSources,
-      showBase,
-      history: historyRef.current,
-      enviadoFinal: enviadoFinalRef.current,
-      updatedAt: Date.now(),
-    });
-    setUltimoSalvamento(new Date());
+    const handle = setTimeout(() => {
+      const snap: PersistedState = {
+        conversationId: conversationIdRef.current,
+        messages,
+        base,
+        lacunas,
+        step,
+        finalizado,
+        notasAjuste,
+        forcarCriacao,
+        prefillStage,
+        prefillUrl,
+        prefillSummary,
+        prefillSources,
+        showBase,
+        history: historyRef.current,
+        enviadoFinal: enviadoFinalRef.current,
+        updatedAt: Date.now(),
+      };
+      void enviarParcialCriacao(conversationIdRef.current, snap)
+        .then((r) => {
+          if (r.ok) setUltimoSalvamento(new Date());
+        })
+        .catch(() => { /* erro é tratado nos pontos de envio explícito */ });
+    }, 600);
+    return () => clearTimeout(handle);
   }, [
     open,
     idValido,
@@ -2015,7 +1975,7 @@ export const DiagnosticoChat = ({ open, onClose, promptId, tokenMode = false }: 
                   {(messages.length > 0 || Object.keys(base).length > 0) && (
                     <button
                       onClick={() => {
-                        if (confirm("Recomeçar a conversa? O progresso salvo neste navegador será apagado.")) {
+                        if (confirm("Recomeçar a conversa? A sessão atual será descartada.")) {
                           recomecarConversa();
                         }
                       }}
