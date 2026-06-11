@@ -534,12 +534,78 @@ export const DiagnosticoChat = ({ open, onClose, promptId }: Props) => {
     }, 900);
   };
 
-  const finalizarCriacaoCompleta = (
+  const finalizarCriacaoCompleta = async (
     baseFinal: Record<string, string[]>,
     lacunasFinal: string[],
   ) => {
     if (enviadoFinalRef.current) return;
     enviadoFinalRef.current = true;
+
+    // 1) Compliance check obrigatório antes do envio
+    setMessages((m) => [
+      ...m,
+      { role: "system", tone: "info", text: "Verificando políticas de uso (compliance)…" },
+    ]);
+
+    let compliance: ComplianceCheckResult | null = null;
+    try {
+      compliance = await runComplianceCheck({
+        tenant_id: getAgenteExterno(),
+        agent_id: getAgenteExterno(),
+        user_id: null,
+        conversation_id: conversationIdRef.current,
+        trigger_event: "criacao_finalizada",
+        payload: {
+          nome_negocio: (baseFinal["Empresa"] ?? []).join(" | "),
+          descricao_empresa: (baseFinal["Empresa"] ?? []).join("\n"),
+          base: baseFinal,
+          produtos_servicos: (baseFinal["Produtos e serviços"] ?? []).join("\n"),
+          mensagens_automaticas: (baseFinal["Processo comercial"] ?? []).join("\n"),
+          urls: prefillUrl ? [prefillUrl] : [],
+          termos_comerciais: (baseFinal["Políticas e regras"] ?? []).join("\n"),
+        },
+      });
+    } catch (e) {
+      console.error("Falha compliance:", e);
+      setMessages((m) => [
+        ...m,
+        {
+          role: "system",
+          tone: "error",
+          title: "Não foi possível verificar compliance",
+          text: "A verificação obrigatória falhou. Tente novamente em instantes — o envio só ocorre após a aprovação.",
+        },
+      ]);
+      enviadoFinalRef.current = false;
+      return;
+    }
+
+    if (compliance.decision === "bloqueado") {
+      setMessages((m) => [
+        ...m,
+        {
+          role: "system",
+          tone: "error",
+          title: `Implantação bloqueada (risco ${compliance.risk_level.toUpperCase()})`,
+          text: MSG_BLOQUEIO_CRITICO,
+        },
+      ]);
+      return;
+    }
+    if (compliance.decision === "revisao_humana") {
+      setMessages((m) => [
+        ...m,
+        {
+          role: "system",
+          tone: "gap",
+          title: `Aguardando revisão humana (risco ${compliance.risk_level.toUpperCase()})`,
+          text: MSG_REVISAO_HUMANA,
+        },
+      ]);
+      return;
+    }
+
+    // 2) Liberado — envia ao servidor
     void enviarBaseFinalCriacao(
       conversationIdRef.current,
       baseFinal,
@@ -556,7 +622,7 @@ export const DiagnosticoChat = ({ open, onClose, promptId }: Props) => {
         {
           role: "system",
           tone: "save",
-          text: "Base de Conhecimento enviada ao servidor com sucesso.",
+          text: "Base de Conhecimento aprovada em compliance e enviada ao servidor com sucesso.",
         },
       ]);
     });
