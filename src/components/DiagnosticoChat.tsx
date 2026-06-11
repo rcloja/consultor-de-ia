@@ -41,6 +41,20 @@ interface Pergunta {
   campo: string;
   lacunaSe?: (resp: string) => boolean;
   lacunaMsg?: string;
+  opcional?: boolean;
+}
+
+const SKIP_REGEX = /^(pular|skip|n[aã]o|nao quero|sem nome|nenhum|nenhuma|--|-)$/i;
+
+function derivarNomeAgente(base: Record<string, string[]>): string {
+  const escolhido = (base["Nome do Agente"] ?? []).map((s) => s?.trim()).find((s) => s && !SKIP_REGEX.test(s));
+  if (escolhido) return escolhido;
+  const empresaRaw = (base["Empresa"] ?? [])[0] ?? "";
+  // pega a primeira parte antes de vírgula/“e”/“-” e a primeira palavra significativa
+  const limpo = empresaRaw.split(/[,;\-–—|]/)[0].replace(/\b(ltda|me|eireli|s\.?a\.?|epp)\b/gi, "").trim();
+  const primeira = limpo.split(/\s+/).filter((w) => w.length > 2 && !/^(da|de|do|das|dos|the|a|o)$/i.test(w))[0] ?? "";
+  const nome = primeira ? primeira[0].toUpperCase() + primeira.slice(1).toLowerCase() : "IA";
+  return `Agente ${nome}`;
 }
 
 const ETAPAS = [
