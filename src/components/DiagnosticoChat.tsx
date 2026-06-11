@@ -1223,6 +1223,54 @@ export const DiagnosticoChat = ({ open, onClose, promptId, tokenMode = false }: 
     }
   };
 
+  // Conclui o preenchimento no modo CRIAÇÃO: marca a sessão como 100%
+  // completa e dispara um último POST que reescreve o prompt_persona de
+  // forma definitiva a partir da base atual (gerarPromptPersona é chamado
+  // dentro de enviarParcialCriacao, garantindo prompt fresh).
+  const [concluindoPreenchimento, setConcluindoPreenchimento] = useState(false);
+  const handleConcluirPreenchimento = async () => {
+    if (concluindoPreenchimento || finalizado) return;
+    setConcluindoPreenchimento(true);
+    try {
+      setFinalizado(true);
+      // Monta snapshot já com finalizado=true para o POST definitivo.
+      const snap: PersistedState = { ...snapshotAtual(), finalizado: true };
+      const r = await dispararSave(snap);
+      if (r.ignored) return;
+      if (!r.ok) {
+        // Reverte o finalizado para permitir nova tentativa
+        setFinalizado(false);
+        setMessages((m) => [
+          ...m,
+          {
+            role: "system",
+            tone: "error",
+            title: "Não foi possível concluir o preenchimento",
+            text:
+              (r.motivo ?? "Falha desconhecida.") +
+              " Tente novamente — a sessão só é marcada como 100% quando o servidor confirmar.",
+          },
+        ]);
+        return;
+      }
+      setMessages((m) => [
+        ...m,
+        {
+          role: "system",
+          tone: "save",
+          text: "Preenchimento concluído. Prompt definitivo reescrito e enviado ao servidor.",
+        },
+        {
+          role: "agent",
+          text:
+            "✅ Sessão marcada como 100% completa. O prompt da persona foi reescrito de forma definitiva a partir da base atual.",
+        },
+      ]);
+    } finally {
+      setConcluindoPreenchimento(false);
+    }
+  };
+
 
   // Importação de progresso via .txt foi removida — o progresso é mantido
   // automaticamente neste navegador e enviado via POST a cada auto-save/salvar.
