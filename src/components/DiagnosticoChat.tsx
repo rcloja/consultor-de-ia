@@ -1061,9 +1061,7 @@ export const DiagnosticoChat = ({ open, onClose, promptId, tokenMode = false }: 
     const enviarBeacon = () => {
       const s = snapshotRef.current;
       if (!s || !temConteudo()) return;
-      try {
-        salvarEstado(s);
-      } catch { /* noop */ }
+      // Sem persistência local: enviamos somente via beacon ao backend.
       try {
         const payload = JSON.stringify({
           origem: "pagina_implantacao_atendenteai",
