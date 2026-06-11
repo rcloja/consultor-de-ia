@@ -250,6 +250,7 @@ async function enviarBaseFinalCriacao(
       body: JSON.stringify({
         origem: "pagina_implantacao_atendenteai",
         agente: "Arquiteto de Conhecimento IA",
+        agente_externo: getAgenteExterno(),
         modo: "criacao_finalizada",
         conversation_id: conversationId,
         base,
