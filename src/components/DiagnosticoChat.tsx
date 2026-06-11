@@ -578,10 +578,14 @@ const OPCOES_GENERICAS_NEGOCIO = [
   "Outro (descreva em uma frase)",
 ];
 
+export type ValidacaoResposta =
+  | { ok: true; motivo?: undefined; exemplos?: undefined }
+  | { ok: false; motivo: string; exemplos: string[] };
+
 function validarRespostaUsuario(
   texto: string,
   pergunta: Pergunta,
-): { ok: true } | { ok: false; motivo: string; exemplos: string[] } {
+): ValidacaoResposta {
   const t = texto.trim();
   const exemplos = EXEMPLOS_POR_CAMPO[pergunta.campo] ?? [];
   if (!t) return { ok: false, motivo: "A resposta está vazia.", exemplos };
@@ -634,6 +638,64 @@ function validarRespostaUsuario(
 
   return { ok: true };
 }
+
+// Validação para mensagens de ajuste no modo atualização (sem pergunta fixa).
+// Rejeita ajustes vagos como "mudar tudo", "atualizar", "trocar nome", etc.
+const EXEMPLOS_AJUSTE_ATUALIZACAO = [
+  "Atualizar política de reembolso de 5 para 7 dias úteis",
+  "Adicionar diferencial: atendimento humano 24h via WhatsApp",
+  "Mudar tom de voz para mais informal, tratando o cliente por 'você'",
+  "Trocar horário comercial para 9h às 19h, segunda a sábado",
+  "Incluir nova FAQ: 'Vocês emitem nota fiscal?' — Sim, em até 24h após o pagamento.",
+];
+
+function validarAjusteUsuario(texto: string): ValidacaoResposta {
+  const t = texto.trim();
+  const exemplos = EXEMPLOS_AJUSTE_ATUALIZACAO;
+  if (!t) return { ok: false, motivo: "A mensagem está vazia.", exemplos };
+
+  const norm = t.toLowerCase().replace(/[.!?;:,]/g, "").trim();
+
+  // Genéricas absolutas
+  const genericasAjuste = new Set([
+    ...RESPOSTAS_GENERICAS,
+    "atualizar","atualiza","mudar","muda","trocar","troca","alterar","altera",
+    "corrigir","ajustar","editar","modificar","melhorar","arrumar","revisar",
+    "mudar tudo","atualizar tudo","trocar tudo","mudar isso","atualizar isso",
+    "mudar prompt","atualizar prompt","editar prompt","reescrever",
+  ]);
+  if (genericasAjuste.has(norm)) {
+    return {
+      ok: false,
+      motivo: `"${t}" não diz **o que** deve ser alterado nem **qual o novo valor**.`,
+      exemplos,
+    };
+  }
+
+  // Muito curto sem contexto (≤3 palavras e <20 chars)
+  const palavras = norm.split(/\s+/).filter(Boolean);
+  if (palavras.length <= 3 && norm.length < 20) {
+    return {
+      ok: false,
+      motivo: `A mensagem "${t}" é muito curta e não descreve a alteração com clareza.`,
+      exemplos,
+    };
+  }
+
+  // Verbo de ajuste sem objeto claro (ex.: "mudar política", "trocar nome")
+  const verbosAjuste = /^(atualizar|mudar|trocar|alterar|corrigir|ajustar|editar|modificar|melhorar|revisar|reescrever)\b/i;
+  if (verbosAjuste.test(norm) && palavras.length <= 4) {
+    return {
+      ok: false,
+      motivo:
+        "Você indicou que quer alterar algo, mas não disse **para qual novo valor**. Descreva o que deve passar a constar.",
+      exemplos,
+    };
+  }
+
+  return { ok: true };
+}
+
 
 
 // ---------- Geração do PROMPT organizado da persona ----------
@@ -736,6 +798,8 @@ export const DiagnosticoChat = ({ open, onClose, promptId, tokenMode = false }: 
   // Tentativas inválidas por pergunta (step) — após 2, oferecemos opções comuns
   // e na próxima a resposta é aceita para não travar o usuário.
   const tentativasInvRef = useRef<Record<number, number>>({});
+  // Tentativas inválidas no modo atualização (chave única "upd").
+  const tentativasUpdRef = useRef<number>(0);
 
 
   // Reinicia a conversa a cada abertura do chat
@@ -1516,6 +1580,47 @@ export const DiagnosticoChat = ({ open, onClose, promptId, tokenMode = false }: 
   const handleSendUpdate = () => {
     const text = input.trim();
     if (!text || finalizado) return;
+
+    // ---------- VALIDAÇÃO OBRIGATÓRIA NO MODO ATUALIZAÇÃO ----------
+    // Rejeita ajustes vagos como "mudar tudo", "atualizar", "trocar nome",
+    // até 2 vezes. Na 3ª, aceita para não travar o usuário.
+    if (tentativasUpdRef.current < 2) {
+      const v = validarAjusteUsuario(text);
+      if (!v.ok) {
+        const motivoInv = v.motivo;
+        const exemplosInv = v.exemplos;
+        tentativasUpdRef.current += 1;
+        setMessages((m) => [...m, { role: "user", text }]);
+        setInput("");
+        const ofereceOpcoes = tentativasUpdRef.current >= 2;
+        const exemplosTxt = exemplosInv.length
+          ? "\n\nExemplos de ajustes válidos:\n" +
+            exemplosInv.map((e) => `• ${e}`).join("\n")
+          : "";
+        const opcoesTxt = ofereceOpcoes
+          ? "\n\nSe preferir, escolha uma área para alterar e descreva o **novo valor**:\n" +
+            CAMPOS_BASE.map((c, i) => `${i + 1}. ${c}`).join("\n")
+          : "";
+        setTimeout(() => {
+          setMessages((m) => [
+            ...m,
+            {
+              role: "system",
+              tone: "gap",
+              title: "Preciso de mais detalhes para aplicar a alteração",
+              text:
+                `${motivoInv} Para atualizar o prompt corretamente preciso saber **o que** alterar e **qual o novo conteúdo**.` +
+                exemplosTxt +
+                opcoesTxt,
+            },
+          ]);
+        }, 300);
+        return;
+      }
+    }
+    // Aceita — zera contador para próximo ajuste
+    tentativasUpdRef.current = 0;
+
     setMessages((m) => [...m, { role: "user", text }]);
     setInput("");
     const novasNotas = [...notasAjuste, text];
