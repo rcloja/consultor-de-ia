@@ -396,7 +396,9 @@ async function enviarBaseFinalCriacao(
 }
 
 // ---------- Persistência local (sobrevive a fechar a página) ----------
-const STORAGE_KEY = "diagnostico_chat_state_v1";
+// Sem persistência local: o backend é a ÚNICA fonte de verdade.
+// Mantemos a interface PersistedState apenas como contrato em memória
+// (snapshot usado nas chamadas POST). Nenhum dado é gravado no navegador.
 
 interface PersistedState {
   conversationId: string;
@@ -415,30 +417,6 @@ interface PersistedState {
   history: ImplantadorChatHistoryItem[];
   enviadoFinal?: boolean;
   updatedAt: number;
-}
-
-function carregarEstadoSalvo(): PersistedState | null {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as PersistedState;
-    if (!parsed || !Array.isArray(parsed.messages)) return null;
-    return parsed;
-  } catch {
-    return null;
-  }
-}
-
-function salvarEstado(state: PersistedState) {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  } catch {
-    /* quota / privacidade */
-  }
-}
-
-function limparEstadoSalvo() {
-  try { localStorage.removeItem(STORAGE_KEY); } catch { /* noop */ }
 }
 
 // Geração/importação de .txt removida — progresso é enviado apenas via POST
