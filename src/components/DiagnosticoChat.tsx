@@ -134,6 +134,14 @@ interface Props {
 // endpoint ou criar um proxy/backend intermediário. Usamos no-cors como fallback no POST.
 // O GET precisa de CORS liberado para conseguir LER a resposta — sem isso a base
 // existente não poderá ser carregada no navegador do cliente.
+export type SendResult =
+  | { ok: true; resposta?: RespostaInterpretada }
+  | { ok: false; motivo: string; etapa: "validacao" | "rede" | "resposta" };
+
+// NOTA: Caso o servidor bloqueie por CORS, será necessário liberar CORS no
+// endpoint ou criar um proxy/backend intermediário. Usamos no-cors como fallback no POST.
+// O GET precisa de CORS liberado para conseguir LER a resposta — sem isso a base
+// existente não poderá ser carregada no navegador do cliente.
 async function enviarPerguntaParaServidor(
   pergunta: string,
   etapaAtual: string,
@@ -141,29 +149,37 @@ async function enviarPerguntaParaServidor(
   totalEtapas: number,
   progressoPercentual: number,
   promptId?: string | null,
-) {
+): Promise<SendResult> {
+  const payload = {
+    origem: "pagina_implantacao_atendenteai",
+    agente: "Arquiteto de Conhecimento IA",
+    funcao: "Consultor de Implantação de IA",
+    agente_externo: getAgenteExterno(),
+    modo: promptId ? "atualizacao" : "criacao",
+    prompt_id: promptId ?? null,
+    etapa_atual: etapaAtual,
+    numero_etapa: numeroEtapa,
+    total_etapas: totalEtapas,
+    progresso_percentual: progressoPercentual,
+    pergunta,
+    timestamp: new Date().toISOString(),
+  };
+  const v = validarPayload(payload);
+  if (!v.ok) {
+    console.warn("Payload inválido (pergunta):", v.motivo);
+    return { ok: false, motivo: v.motivo, etapa: "validacao" };
+  }
   try {
     await fetch(ENDPOINT, {
       method: "POST",
       mode: "no-cors",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        origem: "pagina_implantacao_atendenteai",
-        agente: "Arquiteto de Conhecimento IA",
-        funcao: "Consultor de Implantação de IA",
-        agente_externo: getAgenteExterno(),
-        modo: promptId ? "atualizacao" : "criacao",
-        prompt_id: promptId ?? null,
-        etapa_atual: etapaAtual,
-        numero_etapa: numeroEtapa,
-        total_etapas: totalEtapas,
-        progresso_percentual: progressoPercentual,
-        pergunta,
-        timestamp: new Date().toISOString(),
-      }),
+      body: JSON.stringify(payload),
     });
+    return { ok: true };
   } catch (error) {
     console.error("Erro ao enviar pergunta para o servidor:", error);
+    return { ok: false, motivo: "Falha de rede ao registrar a pergunta no servidor.", etapa: "rede" };
   }
 }
 
@@ -182,9 +198,6 @@ async function carregarBaseExistente(id: string): Promise<LoadResult> {
       headers: { Accept: "application/json" },
     });
   } catch (e) {
-    // fetch() lançando TypeError geralmente indica bloqueio de CORS,
-    // falha de rede, DNS, ou o servidor não respondeu com cabeçalho
-    // Access-Control-Allow-Origin para a origem atual.
     const detail = e instanceof Error ? e.message : String(e);
     console.error("Falha de rede/CORS ao carregar base existente:", e);
     return { status: "cors", detail };
@@ -223,27 +236,42 @@ async function enviarBaseAtualizada(
   base: Record<string, string[]>,
   lacunas: string[],
   notasAjuste: string[],
-) {
+): Promise<SendResult> {
+  const payload = {
+    origem: "pagina_implantacao_atendenteai",
+    agente: "Arquiteto de Conhecimento IA",
+    agente_externo: getAgenteExterno(),
+    modo: "atualizacao_finalizada",
+    prompt_id: promptId,
+    base,
+    lacunas,
+    notas_de_ajuste: notasAjuste,
+    timestamp: new Date().toISOString(),
+  };
+  const v = validarPayload(payload);
+  if (!v.ok) return { ok: false, motivo: v.motivo, etapa: "validacao" };
+
+  let resp: Response;
   try {
-    await fetch(ENDPOINT, {
+    resp = await fetch(ENDPOINT, {
       method: "POST",
-      mode: "no-cors",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        origem: "pagina_implantacao_atendenteai",
-        agente: "Arquiteto de Conhecimento IA",
-        agente_externo: getAgenteExterno(),
-        modo: "atualizacao_finalizada",
-        prompt_id: promptId,
-        base,
-        lacunas,
-        notas_de_ajuste: notasAjuste,
-        timestamp: new Date().toISOString(),
-      }),
+      body: JSON.stringify(payload),
     });
   } catch (e) {
     console.error("Erro ao enviar base atualizada:", e);
+    return {
+      ok: false,
+      etapa: "rede",
+      motivo:
+        "Não foi possível contatar o servidor para enviar a atualização (falha de rede ou CORS). Verifique sua conexão e tente novamente.",
+    };
   }
+  const interpretada = await interpretarResposta(resp);
+  if (!interpretada.ok) {
+    return { ok: false, etapa: "resposta", motivo: interpretada.motivo ?? "Resposta inválida do servidor." };
+  }
+  return { ok: true, resposta: interpretada };
 }
 
 async function enviarBaseFinalCriacao(
@@ -252,28 +280,43 @@ async function enviarBaseFinalCriacao(
   lacunas: string[],
   notasAjuste: string[],
   origemPrefill: { url?: string; sources: string[]; summary: string },
-) {
+): Promise<SendResult> {
+  const payload = {
+    origem: "pagina_implantacao_atendenteai",
+    agente: "Arquiteto de Conhecimento IA",
+    agente_externo: getAgenteExterno(),
+    modo: "criacao_finalizada",
+    conversation_id: conversationId,
+    base,
+    lacunas,
+    notas_de_ajuste: notasAjuste,
+    prefill: origemPrefill,
+    timestamp: new Date().toISOString(),
+  };
+  const v = validarPayload(payload);
+  if (!v.ok) return { ok: false, motivo: v.motivo, etapa: "validacao" };
+
+  let resp: Response;
   try {
-    await fetch(ENDPOINT, {
+    resp = await fetch(ENDPOINT, {
       method: "POST",
-      mode: "no-cors",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        origem: "pagina_implantacao_atendenteai",
-        agente: "Arquiteto de Conhecimento IA",
-        agente_externo: getAgenteExterno(),
-        modo: "criacao_finalizada",
-        conversation_id: conversationId,
-        base,
-        lacunas,
-        notas_de_ajuste: notasAjuste,
-        prefill: origemPrefill,
-        timestamp: new Date().toISOString(),
-      }),
+      body: JSON.stringify(payload),
     });
   } catch (e) {
     console.error("Erro ao enviar base final (criação):", e);
+    return {
+      ok: false,
+      etapa: "rede",
+      motivo:
+        "Não foi possível contatar o servidor para finalizar a criação (falha de rede ou CORS). Verifique sua conexão e tente novamente.",
+    };
   }
+  const interpretada = await interpretarResposta(resp);
+  if (!interpretada.ok) {
+    return { ok: false, etapa: "resposta", motivo: interpretada.motivo ?? "Resposta inválida do servidor." };
+  }
+  return { ok: true, resposta: interpretada };
 }
 
 // ---------- Persistência local (sobrevive a fechar a página) ----------
