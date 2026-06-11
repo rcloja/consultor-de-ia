@@ -177,7 +177,7 @@ async function enviarPerguntaParaServidor(
     origem: "pagina_implantacao_atendenteai",
     agente: "Arquiteto de Conhecimento IA",
     funcao: "Consultor de Implantação de IA",
-    agente_externo: getAgenteExterno(),
+    agente: getAgenteExterno(),
     modo: promptId ? "atualizacao" : "criacao",
     prompt_id: promptId ?? null,
     etapa_atual: etapaAtual,
