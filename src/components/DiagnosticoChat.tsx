@@ -1258,6 +1258,38 @@ export const DiagnosticoChat = ({ open, onClose, promptId }: Props) => {
 
   if (!open) return null;
 
+  if (!agenteExterno && !modoAtualizacao) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-foreground/40 backdrop-blur-sm p-0 sm:p-4 animate-fade-up">
+        <div className="w-full sm:max-w-lg bg-card rounded-t-3xl sm:rounded-3xl shadow-elegant border border-border overflow-hidden">
+          <div className="p-6 sm:p-8 flex flex-col items-center text-center gap-4">
+            <div className="w-14 h-14 rounded-2xl bg-destructive/10 flex items-center justify-center">
+              <AlertCircle className="w-7 h-7 text-destructive" />
+            </div>
+            <h2 className="font-display font-semibold text-lg">
+              Acesso sem agente vinculado
+            </h2>
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              Esta página só pode ser utilizada quando aberta a partir do sistema{" "}
+              <strong>AtendenteAI</strong>. Para iniciar um diagnóstico, volte ao sistema e clique em{" "}
+              <strong>"NOVO AGENTE"</strong> — isso gerará o link correto com o identificador do agente.
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Nenhuma informação será coletada, enviada ou processada sem essa vinculação.
+            </p>
+            <button
+              onClick={onClose}
+              className="mt-2 px-4 py-2 rounded-xl bg-secondary hover:bg-secondary/80 transition text-sm font-medium"
+            >
+              Fechar
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-foreground/40 backdrop-blur-sm p-0 sm:p-4 animate-fade-up">
       <div className="w-full sm:max-w-5xl bg-card rounded-t-3xl sm:rounded-3xl shadow-elegant border border-border flex flex-col lg:flex-row h-[92vh] sm:h-[680px] overflow-hidden">
