@@ -1049,7 +1049,14 @@ export const DiagnosticoChat = ({ open, onClose, promptId, tokenMode = false }: 
 
   const [salvandoParcial, setSalvandoParcial] = useState(false);
   const [ultimoSalvamento, setUltimoSalvamento] = useState<Date | null>(null);
-  
+
+  // Proteção contra condições de corrida em salvamentos paralelos.
+  // saveSeqRef: número monotônico — só o último envio iniciado é considerado vencedor.
+  // saveAbortRef: AbortController do envio em andamento, abortado quando um novo começa.
+  // debounceTimerRef: timer da auto-save (cancelado quando há salvamento explícito).
+  const saveSeqRef = useRef(0);
+  const saveAbortRef = useRef<AbortController | null>(null);
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Snapshot sempre atualizado para os listeners de unload/visibility.
   const snapshotRef = useRef<PersistedState | null>(null);
