@@ -306,6 +306,7 @@ async function enviarBaseAtualizada(
   base: Record<string, string[]>,
   lacunas: string[],
   notasAjuste: string[],
+  promptPersona: string,
 ): Promise<SendResult> {
   const payload = {
     origem: "pagina_implantacao_atendenteai",
@@ -316,6 +317,7 @@ async function enviarBaseAtualizada(
     base,
     lacunas,
     notas_de_ajuste: notasAjuste,
+    prompt_persona: promptPersona,
     timestamp: new Date().toISOString(),
   };
   const v = validarPayload(payload);
