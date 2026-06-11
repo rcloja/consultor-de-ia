@@ -221,6 +221,7 @@ async function enviarBaseAtualizada(
       body: JSON.stringify({
         origem: "pagina_implantacao_atendenteai",
         agente: "Arquiteto de Conhecimento IA",
+        agente_externo: getAgenteExterno(),
         modo: "atualizacao_finalizada",
         prompt_id: promptId,
         base,
