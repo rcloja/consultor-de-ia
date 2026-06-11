@@ -2113,7 +2113,9 @@ export const DiagnosticoChat = ({ open, onClose, promptId, tokenMode = false }: 
 
     setMessages((m) => [...m, { role: "user", text }]);
     setInput("");
-    setBase((b) => ({ ...b, [pAtual.campo]: [...(b[pAtual.campo] ?? []), valorSalvo] }));
+    if (!ehRevisao) {
+      setBase((b) => ({ ...b, [pAtual.campo]: [...(b[pAtual.campo] ?? []), valorSalvo] }));
+    }
 
     const temLacuna = pAtual.lacunaSe?.(text);
     if (temLacuna && pAtual.lacunaMsg) {
@@ -2121,10 +2123,12 @@ export const DiagnosticoChat = ({ open, onClose, promptId, tokenMode = false }: 
     }
 
     setTimeout(() => {
-      setMessages((m) => [
-        ...m,
-        { role: "system", tone: "save", text: `Resposta salva em: ${pAtual.campo}.` },
-      ]);
+      if (!ehRevisao) {
+        setMessages((m) => [
+          ...m,
+          { role: "system", tone: "save", text: `Resposta salva em: ${pAtual.campo}.` },
+        ]);
+      }
 
       void pedirComentarioIA(text, {
         pergunta_atual: pAtual.texto,
