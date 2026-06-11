@@ -240,23 +240,60 @@ async function carregarBaseExistente(
   if (!resp.ok) return { status: "http", code: resp.status };
 
   try {
-    const ct = resp.headers.get("content-type") ?? "";
-    if (ct.includes("application/json")) {
-      const data = await resp.json();
-      const base =
-        (data?.base as Record<string, string[]>) ??
-        (data?.knowledge_base as Record<string, string[]>) ??
-        (typeof data === "object" && data !== null ? (data as Record<string, string[]>) : {});
-      const lacunas: string[] = Array.isArray(data?.lacunas) ? data.lacunas : [];
-      const normalized: Record<string, string[]> = {};
-      for (const [k, v] of Object.entries(base)) {
-        if (Array.isArray(v)) normalized[k] = v.map(String);
-        else if (typeof v === "string") normalized[k] = [v];
-      }
-      return { status: "ok", base: normalized, lacunas, raw: data };
+    const raw = await resp.text();
+    const trimmed = raw.trim();
+
+    if (!trimmed) {
+      return { status: "parse", detail: "Resposta vazia do servidor." };
     }
-    const txt = await resp.text();
-    return { status: "ok", base: { Empresa: [txt] }, lacunas: [] };
+
+    // Resposta HTML/PHP (ex.: "<br /><b>Warning</b>...") — não é JSON válido
+    if (trimmed.startsWith("<")) {
+      console.error("Endpoint retornou HTML/PHP em vez de JSON:", trimmed.slice(0, 200));
+      return {
+        status: "parse",
+        detail:
+          "O servidor retornou HTML/PHP em vez de JSON (provável warning/notice do PHP). Verifique o endpoint consultor.php e garanta Content-Type: application/json sem outputs extras.",
+      };
+    }
+
+    let data: unknown;
+    try {
+      data = JSON.parse(trimmed);
+    } catch (e) {
+      const detail = e instanceof Error ? e.message : String(e);
+      console.error("Falha ao parsear JSON da base:", detail, trimmed.slice(0, 200));
+      return { status: "parse", detail: `Resposta não é JSON válido: ${detail}` };
+    }
+
+    // JSON duplamente codificado: veio como string contendo JSON
+    if (typeof data === "string") {
+      try {
+        data = JSON.parse(data);
+      } catch {
+        // segue como string mesmo
+      }
+    }
+
+    if (typeof data !== "object" || data === null) {
+      return {
+        status: "parse",
+        detail: "Resposta JSON não é um objeto válido.",
+      };
+    }
+
+    const obj = data as Record<string, unknown>;
+    const base =
+      (obj.base as Record<string, string[]>) ??
+      (obj.knowledge_base as Record<string, string[]>) ??
+      (obj as Record<string, string[]>);
+    const lacunas: string[] = Array.isArray(obj.lacunas) ? (obj.lacunas as string[]) : [];
+    const normalized: Record<string, string[]> = {};
+    for (const [k, v] of Object.entries(base ?? {})) {
+      if (Array.isArray(v)) normalized[k] = v.map(String);
+      else if (typeof v === "string") normalized[k] = [v];
+    }
+    return { status: "ok", base: normalized, lacunas, raw: data };
   } catch (e) {
     const detail = e instanceof Error ? e.message : String(e);
     console.error("Falha ao interpretar resposta da base:", e);
