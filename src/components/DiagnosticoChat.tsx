@@ -167,7 +167,7 @@ async function enviarPerguntaParaServidor(
   const v = validarPayload(payload);
   if (!v.ok) {
     console.warn("Payload inválido (pergunta):", v.motivo);
-    return { ok: false, motivo: v.motivo, etapa: "validacao" };
+    return { ok: false, motivo: v.motivo ?? "Payload inválido.", etapa: "validacao" };
   }
   try {
     await fetch(ENDPOINT, {
@@ -249,7 +249,7 @@ async function enviarBaseAtualizada(
     timestamp: new Date().toISOString(),
   };
   const v = validarPayload(payload);
-  if (!v.ok) return { ok: false, motivo: v.motivo, etapa: "validacao" };
+  if (!v.ok) return { ok: false, motivo: v.motivo ?? "Payload inválido.", etapa: "validacao" };
 
   let resp: Response;
   try {
@@ -294,7 +294,7 @@ async function enviarBaseFinalCriacao(
     timestamp: new Date().toISOString(),
   };
   const v = validarPayload(payload);
-  if (!v.ok) return { ok: false, motivo: v.motivo, etapa: "validacao" };
+  if (!v.ok) return { ok: false, motivo: v.motivo ?? "Payload inválido.", etapa: "validacao" };
 
   let resp: Response;
   try {
