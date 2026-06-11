@@ -413,35 +413,43 @@ async function importarProgressoTxt(file: File): Promise<PersistedState | null> 
 async function enviarParcialCriacao(
   conversationId: string,
   state: PersistedState,
-) {
+): Promise<SendResult> {
+  const payload = {
+    origem: "pagina_implantacao_atendenteai",
+    agente: "Arquiteto de Conhecimento IA",
+    agente_externo: getAgenteExterno(),
+    modo: "criacao_parcial",
+    conversation_id: conversationId,
+    base: state.base,
+    lacunas: state.lacunas,
+    notas_de_ajuste: state.notasAjuste,
+    etapa_atual_idx: state.step,
+    finalizado: state.finalizado,
+    prefill: {
+      url: state.prefillUrl,
+      sources: state.prefillSources,
+      summary: state.prefillSummary,
+    },
+    timestamp: new Date(state.updatedAt).toISOString(),
+  };
+  const v = validarPayload(payload);
+  if (!v.ok) {
+    return { ok: false, motivo: v.motivo ?? "Payload inválido.", etapa: "validacao" };
+  }
   try {
     await fetch(ENDPOINT, {
       method: "POST",
       mode: "no-cors",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        origem: "pagina_implantacao_atendenteai",
-        agente: "Arquiteto de Conhecimento IA",
-        agente_externo: getAgenteExterno(),
-        modo: "criacao_parcial",
-        conversation_id: conversationId,
-        base: state.base,
-        lacunas: state.lacunas,
-        notas_de_ajuste: state.notasAjuste,
-        etapa_atual_idx: state.step,
-        finalizado: state.finalizado,
-        prefill: {
-          url: state.prefillUrl,
-          sources: state.prefillSources,
-          summary: state.prefillSummary,
-        },
-        timestamp: new Date(state.updatedAt).toISOString(),
-      }),
+      body: JSON.stringify(payload),
     });
+    return { ok: true };
   } catch (e) {
     console.error("Erro ao enviar progresso parcial:", e);
+    return { ok: false, motivo: "Falha de rede ao salvar o progresso no servidor.", etapa: "rede" };
   }
 }
+
 
 
 const CAMPOS_BASE = [
