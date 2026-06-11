@@ -813,44 +813,8 @@ export const DiagnosticoChat = ({ open, onClose, promptId }: Props) => {
     }
   };
 
-  const handleImportarProgresso = async (file: File) => {
-    const parsed = await importarProgressoTxt(file);
-    if (!parsed) {
-      setMessages((m) => [
-        ...m,
-        {
-          role: "system",
-          tone: "error",
-          title: "Arquivo inválido",
-          text: "Não consegui ler o arquivo de progresso. Verifique se é o .txt original gerado pelo botão 'Salvar progresso'.",
-        },
-      ]);
-      return;
-    }
-    conversationIdRef.current = parsed.conversationId || conversationIdRef.current;
-    historyRef.current = Array.isArray(parsed.history) ? parsed.history : [];
-    enviadoFinalRef.current = !!parsed.enviadoFinal;
-    setMessages(parsed.messages);
-    setBase(parsed.base ?? {});
-    setLacunas(parsed.lacunas ?? []);
-    setStep(parsed.step ?? 0);
-    setFinalizado(!!parsed.finalizado);
-    setShowBase(!!parsed.showBase);
-    setNotasAjuste(parsed.notasAjuste ?? []);
-    setForcarCriacao(!!parsed.forcarCriacao);
-    setPrefillStage(parsed.prefillStage ?? "done");
-    setPrefillUrl(parsed.prefillUrl ?? "");
-    setPrefillSummary(parsed.prefillSummary ?? "");
-    setPrefillSources(parsed.prefillSources ?? []);
-    setMessages((m) => [
-      ...m,
-      {
-        role: "system",
-        tone: "save",
-        text: `Progresso restaurado a partir do arquivo (salvo em ${new Date(parsed.updatedAt).toLocaleString("pt-BR")}).`,
-      },
-    ]);
-  };
+  // Importação de progresso via .txt foi removida — o progresso é mantido
+  // automaticamente neste navegador e enviado via POST a cada auto-save/salvar.
 
 
   const iniciarPerguntasAposPrefill = (baseAtual: Record<string, string[]>) => {
