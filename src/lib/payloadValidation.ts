@@ -2,7 +2,7 @@
 // https://admin.atendenteai.com.br/api/consultor.php
 // e interpretação das respostas recebidas.
 
-export type ValidationResult = { ok: true } | { ok: false; motivo: string };
+export type ValidationResult = { ok: true; motivo?: undefined } | { ok: false; motivo: string };
 
 const AGENTE_REGEX = /^[A-Za-z0-9_-]{1,128}$/;
 
