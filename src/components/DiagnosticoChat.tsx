@@ -602,6 +602,7 @@ export const DiagnosticoChat = ({ open, onClose, promptId }: Props) => {
         conversation_id: conversationIdRef.current,
         trigger_event: "criacao_finalizada",
         payload: {
+          nome_agente: nomeAgente,
           nome_negocio: (baseFinal["Empresa"] ?? []).join(" | "),
           descricao_empresa: (baseFinal["Empresa"] ?? []).join("\n"),
           base: baseFinal,
