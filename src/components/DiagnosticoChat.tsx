@@ -667,7 +667,7 @@ function validarAjusteUsuario(texto: string): ValidacaoResposta {
   if (genericasAjuste.has(norm)) {
     return {
       ok: false,
-      motivo: `"${t}" não diz **o que** deve ser alterado nem **qual o novo valor**.`,
+      motivo: `Diga qual campo alterar e qual o novo conteúdo. "${t}" não informa a seção nem o valor a ser aplicado.`,
       exemplos,
     };
   }
@@ -677,7 +677,7 @@ function validarAjusteUsuario(texto: string): ValidacaoResposta {
   if (palavras.length <= 3 && norm.length < 20) {
     return {
       ok: false,
-      motivo: `A mensagem "${t}" é muito curta e não descreve a alteração com clareza.`,
+      motivo: `A descrição da alteração está incompleta. Informe a seção e o novo texto para aplicar.`,
       exemplos,
     };
   }
@@ -688,7 +688,7 @@ function validarAjusteUsuario(texto: string): ValidacaoResposta {
     return {
       ok: false,
       motivo:
-        "Você indicou que quer alterar algo, mas não disse **para qual novo valor**. Descreva o que deve passar a constar.",
+        "Falta o novo valor. Complete informando: qual seção e qual conteúdo deve passar a constar no prompt.",
       exemplos,
     };
   }
@@ -1607,9 +1607,9 @@ export const DiagnosticoChat = ({ open, onClose, promptId, tokenMode = false }: 
             {
               role: "system",
               tone: "gap",
-              title: "Preciso de mais detalhes para aplicar a alteração",
+              title: "Ajuste incompleto — especifique campo e novo conteúdo",
               text:
-                `${motivoInv} Para atualizar o prompt corretamente preciso saber **o que** alterar e **qual o novo conteúdo**.` +
+                `${motivoInv}\n\nPara aplicar, envie: (1) a seção que deseja alterar e (2) o novo texto completo.` +
                 exemplosTxt +
                 opcoesTxt,
             },
