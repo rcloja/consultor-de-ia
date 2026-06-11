@@ -1808,34 +1808,123 @@ export const DiagnosticoChat = ({ open, onClose, promptId, tokenMode = false }: 
     setInput("");
     const novasNotas = [...notasAjuste, text];
     setNotasAjuste(novasNotas);
-    // Heurística simples: se mencionar nome de uma seção conhecida, anexa lá também.
-    const lower = text.toLowerCase();
-    const secao = CAMPOS_BASE.find((c) => lower.includes(c.toLowerCase()));
-    const baseAtualizada: Record<string, string[]> = secao
-      ? { ...base, [secao]: [...(base[secao] ?? []), text] }
-      : base;
-    if (secao) setBase(baseAtualizada);
+
+    // ---------- DETECÇÃO DE INTENÇÃO DE REMOÇÃO ----------
+    // Se o usuário pedir para retirar/remover/excluir/apagar/eliminar/deletar
+    // um trecho (idealmente entre aspas ou após ":"), removemos esse trecho
+    // dos itens da base, em vez de apenas anexar como nova entrada.
+    const norm = (s: string) =>
+      s
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/\s+/g, " ")
+        .replace(/^[\s\-•"'`«»“”‘’.,;:!?()[\]]+|[\s\-•"'`«»“”‘’.,;:!?()[\]]+$/g, "")
+        .trim();
+
+    const intentRemocao =
+      /\b(retir(e|ar|a|o)|remov(er|a|e|i)|exclu(ir|a|i)|apag(ar|ue|a)|delet(ar|e|a)|elimin(ar|e|a)|tir(ar|e|a))\b/i.test(
+        text,
+      ) || /\bsem\s+(essa|esta|esse|este|o\s+trecho|a\s+parte)\b/i.test(text);
+
+    let alvo = "";
+    if (intentRemocao) {
+      // 1) tenta extrair conteúdo entre aspas / crases / chevrons
+      const mQuote = text.match(/["“”'`«»]([^"“”'`«»]{2,})["“”'`«»]/);
+      if (mQuote) {
+        alvo = mQuote[1].trim();
+      } else {
+        // 2) depois de ":" ou após o verbo de remoção
+        const mColon = text.split(/:\s+/);
+        if (mColon.length > 1) {
+          alvo = mColon.slice(1).join(": ").trim();
+        } else {
+          const mVerb = text.match(
+            /\b(?:retir(?:e|ar|a|o)|remov(?:er|a|e|i)|exclu(?:ir|a|i)|apag(?:ar|ue|a)|delet(?:ar|e|a)|elimin(?:ar|e|a)|tir(?:ar|e|a))\s+(?:o|a|os|as|esse|essa|este|esta|o\s+trecho|a\s+parte|a\s+frase|a\s+linha|isso)?\s*[:\-—]?\s*(.{3,})/i,
+          );
+          if (mVerb) alvo = mVerb[1].trim();
+        }
+      }
+      alvo = alvo.replace(/^["“”'`«»\s\-–—]+|["“”'`«»\s\-–—.,;:!?]+$/g, "").trim();
+    }
+
+    let baseAtualizada: Record<string, string[]> = base;
+    let secaoDetectada: string | null = null;
+    const removidos: { secao: string; trecho: string }[] = [];
+
+    if (intentRemocao && alvo && alvo.length >= 3) {
+      const alvoNorm = norm(alvo);
+      const reAlvo = new RegExp(
+        alvo.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
+        "i",
+      );
+      const novaBase: Record<string, string[]> = {};
+      for (const [k, itens] of Object.entries(base)) {
+        const arr = Array.isArray(itens) ? itens : [];
+        const out: string[] = [];
+        for (const it of arr) {
+          const itStr = typeof it === "string" ? it : String(it ?? "");
+          if (norm(itStr) === alvoNorm) {
+            removidos.push({ secao: k, trecho: itStr });
+            continue;
+          }
+          if (reAlvo.test(itStr)) {
+            const novo = itStr.replace(reAlvo, "").replace(/\s{2,}/g, " ").trim();
+            removidos.push({ secao: k, trecho: alvo });
+            if (novo) out.push(novo);
+            continue;
+          }
+          out.push(itStr);
+        }
+        novaBase[k] = out;
+      }
+      if (removidos.length > 0) {
+        baseAtualizada = novaBase;
+        setBase(novaBase);
+      }
+    }
+
+    // Se NÃO foi remoção (ou não encontramos o alvo), mantém o comportamento
+    // anterior: heurística de seção e anexar como novo conteúdo.
+    if (removidos.length === 0) {
+      const lower = text.toLowerCase();
+      const secao = CAMPOS_BASE.find((c) => lower.includes(c.toLowerCase()));
+      if (secao && !intentRemocao) {
+        baseAtualizada = { ...base, [secao]: [...(base[secao] ?? []), text] };
+        secaoDetectada = secao;
+        setBase(baseAtualizada);
+      } else {
+        secaoDetectada = secao ?? null;
+      }
+    }
+
     const promptRevisado = gerarPromptPersona(baseAtualizada, novasNotas);
     void promptRevisado; // gerado para uso interno/compliance; não exibido ao usuário
     setTimeout(() => {
+      let msgTxt: string;
+      if (removidos.length > 0) {
+        const secs = Array.from(new Set(removidos.map((r) => r.secao))).join(", ");
+        msgTxt = `Trecho removido de: ${secs}.`;
+      } else if (secaoDetectada) {
+        msgTxt = `Ajuste registrado em: ${secaoDetectada}.`;
+      } else {
+        msgTxt = "Ajuste registrado nas notas de atualização.";
+      }
       setMessages((m) => [
         ...m,
-        {
-          role: "system",
-          tone: "save",
-          text: secao ? `Ajuste registrado em: ${secao}.` : "Ajuste registrado nas notas de atualização.",
-        },
+        { role: "system", tone: "save", text: msgTxt },
         {
           role: "agent",
           text:
-            "Alteração registrada. Se quiser fazer mais ajustes, é só me dizer qual seção e o novo conteúdo. Quando estiver pronto, clique em **Concluir atualização**.",
+            "Alteração registrada. Se quiser fazer mais ajustes, é só me dizer qual seção e o novo conteúdo (ou peça para retirar um trecho específico, de preferência entre aspas). Quando estiver pronto, clique em **Concluir atualização**.",
         },
       ]);
     }, 350);
 
     void pedirComentarioIA(text, {
-      tipo: "ajuste_em_atualizacao",
-      secao_detectada: secao ?? null,
+      tipo: removidos.length > 0 ? "remocao_em_atualizacao" : "ajuste_em_atualizacao",
+      secao_detectada: secaoDetectada,
+      removidos: removidos.length > 0 ? removidos : undefined,
     });
   };
 
