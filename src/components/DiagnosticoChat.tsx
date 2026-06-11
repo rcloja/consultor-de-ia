@@ -501,6 +501,141 @@ const CAMPOS_BASE = [
   "Regras do Agente",
 ];
 
+// ---------- Validação obrigatória de respostas do usuário ----------
+const RESPOSTAS_GENERICAS = new Set([
+  "geral","gerais","todos","todas","qualquer","qualquer pessoa","qualquer um","qualquer uma",
+  "público alvo","publico alvo","público-alvo","publico-alvo",
+  "produto principal","produto","serviço","servico","serviços","servicos","produtos",
+  "não sei","nao sei","sei lá","sei la","sla","normal","comum","empresa",
+  "vendas","venda","atendimento","cliente","clientes",
+  "n/a","na","nada","nenhum","nenhuma","-","--","tudo","de tudo","tipo","tipos",
+  "ok","sim","não","nao","talvez",
+]);
+
+const EXEMPLOS_POR_CAMPO: Record<string, string[]> = {
+  Empresa: [
+    "Loja Bella — perfumaria nacional em São Paulo, atua há 6 anos",
+    "Clínica OdontoVida — odontologia familiar em Curitiba/PR",
+    "InterNet Rural — provedor de internet via rádio no interior de MG",
+  ],
+  "Público-Alvo": [
+    "Mulheres de 25 a 45 anos, classe B/C, que buscam perfumes acessíveis",
+    "Famílias com filhos pequenos procurando convênio odontológico",
+    "Produtores rurais sem acesso a fibra óptica",
+  ],
+  Produtos: [
+    "Venda de perfumes nacionais inspirados em fragrâncias famosas",
+    "Planos odontológicos para famílias e empresas",
+    "Planos de internet via rádio de 50 a 300 Mbps",
+  ],
+  Serviços: [
+    "Manutenção preventiva mensal de ar-condicionado residencial",
+    "Consultoria tributária para micro e pequenas empresas",
+  ],
+  "Processo Comercial": [
+    "Cliente chega pelo Instagram → atendente envia catálogo no WhatsApp → fecha por Pix → envio em 2 dias úteis",
+    "Lead pelo site → SDR qualifica → consultor agenda visita → proposta → contrato",
+  ],
+  FAQ: [
+    "'Vocês entregam em todo o Brasil?' / 'Aceitam parcelamento?'",
+    "'Atendem convênio X?' / 'Qual o valor da consulta?'",
+  ],
+  Objeções: [
+    "'Está caro' → mostrar parcelamento e comparar com concorrentes",
+    "'Tenho receio da qualidade' → apresentar garantia e depoimentos",
+  ],
+  Diferenciais: [
+    "Atendimento humano 24h via WhatsApp + entrega no mesmo dia em SP capital",
+    "Único provedor da região com SLA de 99,5% e técnico em até 4h",
+  ],
+  Políticas: [
+    "Troca em até 7 dias com nota fiscal; reembolso via Pix em até 3 dias úteis",
+    "Cancelamento gratuito em 7 dias; após isso, multa de 30% do plano",
+  ],
+  "Casos de Sucesso": [
+    "Cliente X aumentou vendas em 40% após 3 meses com nosso plano",
+    "Família Y eliminou cáries recorrentes após tratamento completo",
+  ],
+  "Termos do Segmento": [
+    "'fixação', 'sillage', 'notas de saída/coração/fundo' (perfumaria)",
+    "'profilaxia', 'restauração', 'canal' (odontologia)",
+  ],
+  "Fluxo de Atendimento": [
+    "WhatsApp → atendente humano → orçamento → fechamento → entrega",
+    "Site → formulário → ligação do consultor → visita → proposta",
+  ],
+  "Regras do Agente": [
+    "Nunca prometer prazo sem confirmar estoque; sempre confirmar CPF antes de gerar boleto",
+    "Nunca dar diagnóstico clínico; sempre encaminhar para profissional",
+  ],
+};
+
+const OPCOES_GENERICAS_NEGOCIO = [
+  "Venda de produtos físicos",
+  "Prestação de serviços",
+  "Consultoria",
+  "Software / SaaS",
+  "Outro (descreva em uma frase)",
+];
+
+function validarRespostaUsuario(
+  texto: string,
+  pergunta: Pergunta,
+): { ok: true } | { ok: false; motivo: string; exemplos: string[] } {
+  const t = texto.trim();
+  const exemplos = EXEMPLOS_POR_CAMPO[pergunta.campo] ?? [];
+  if (!t) return { ok: false, motivo: "A resposta está vazia.", exemplos };
+
+  const norm = t.toLowerCase().replace(/[.!?;:,]/g, "").trim();
+
+  if (RESPOSTAS_GENERICAS.has(norm)) {
+    return {
+      ok: false,
+      motivo: `"${t}" é uma resposta muito genérica e não traz informação útil para configurar o agente.`,
+      exemplos,
+    };
+  }
+
+  const palavras = norm.split(/\s+/).filter(Boolean);
+  if (palavras.length <= 2 && norm.length < 15) {
+    return {
+      ok: false,
+      motivo: `A resposta "${t}" tem poucas palavras e não descreve a sua realidade com a clareza necessária.`,
+      exemplos,
+    };
+  }
+
+  const stop = new Set([
+    "a","o","as","os","de","do","da","dos","das","e","ou","que","qual","quais",
+    "como","para","por","em","no","na","nos","nas","um","uma","seu","sua","seus","suas",
+    "sao","são","é","voce","você","com","sem","mais","menos","tem","ter","ja","já",
+  ]);
+  const palPerg = pergunta.texto
+    .toLowerCase()
+    .replace(/[^\p{L}\s]/gu, " ")
+    .split(/\s+/)
+    .filter((w) => w.length > 2 && !stop.has(w));
+  const palResp = norm
+    .replace(/[^\p{L}\s]/gu, " ")
+    .split(/\s+/)
+    .filter((w) => w.length > 2 && !stop.has(w));
+  if (palResp.length > 0 && palPerg.length > 0) {
+    const sobreposicao =
+      palResp.filter((w) => palPerg.includes(w)).length / palResp.length;
+    if (sobreposicao >= 0.7 && palResp.length <= 5) {
+      return {
+        ok: false,
+        motivo:
+          "Sua resposta praticamente repete a pergunta. Preciso da informação concreta do seu negócio, não da pergunta de volta.",
+        exemplos,
+      };
+    }
+  }
+
+  return { ok: true };
+}
+
+
 // ---------- Geração do PROMPT organizado da persona ----------
 function gerarPromptPersona(
   base: Record<string, string[]>,
@@ -598,6 +733,9 @@ export const DiagnosticoChat = ({ open, onClose, promptId, tokenMode = false }: 
   const conversationIdRef = useRef<string>(gerarConversationId());
   const historyRef = useRef<ImplantadorChatHistoryItem[]>([]);
   const enviadoFinalRef = useRef<boolean>(false);
+  // Tentativas inválidas por pergunta (step) — após 2, oferecemos opções comuns
+  // e na próxima a resposta é aceita para não travar o usuário.
+  const tentativasInvRef = useRef<Record<number, number>>({});
 
 
   // Reinicia a conversa a cada abertura do chat
@@ -1552,7 +1690,55 @@ export const DiagnosticoChat = ({ open, onClose, promptId, tokenMode = false }: 
 
     // Perguntas opcionais aceitam termos de "pular" — salvamos string vazia
     // e o nome final é derivado depois (ex.: "Agente <Empresa>").
-    const valorSalvo = pAtual.opcional && SKIP_REGEX.test(text) ? "" : text;
+    const ehPular = pAtual.opcional && SKIP_REGEX.test(text);
+    const valorSalvo = ehPular ? "" : text;
+
+    // ---------- VALIDAÇÃO OBRIGATÓRIA DE RESPOSTA ----------
+    // Não avança se a resposta for genérica/vaga. Após 2 tentativas inválidas,
+    // oferecemos opções comuns; na 3ª, aceitamos para não travar o usuário.
+    const ehRevisao = pAtual.campo === "Revisão";
+    if (!ehPular && !ehRevisao) {
+      const tentativasPrevias = tentativasInvRef.current[step] ?? 0;
+      if (tentativasPrevias < 2) {
+        const v = validarRespostaUsuario(text, pAtual);
+        if (!v.ok) {
+          const motivoInv = v.motivo;
+          const exemplosInv = v.exemplos;
+          tentativasInvRef.current[step] = tentativasPrevias + 1;
+          setMessages((m) => [...m, { role: "user", text }]);
+          setInput("");
+          const proximaTentativa = tentativasPrevias + 1;
+          const ofereceOpcoes = proximaTentativa >= 2;
+          const exemplosTxt = exemplosInv.length
+            ? "\n\nExemplos válidos para esta pergunta:\n" +
+              exemplosInv.map((e) => `• ${e}`).join("\n")
+            : "";
+          const opcoesTxt = ofereceOpcoes
+            ? "\n\nNão consegui identificar claramente. Selecione a opção mais próxima do seu negócio (ou descreva em uma frase completa):\n" +
+              OPCOES_GENERICAS_NEGOCIO.map((o, i) => `${i + 1}. ${o}`).join("\n")
+            : "";
+          setTimeout(() => {
+            setMessages((m) => [
+              ...m,
+              {
+                role: "system",
+                tone: "gap",
+                title: "Preciso de mais detalhes",
+                text:
+                  `${motivoInv} Para configurar corretamente o seu agente, preciso de uma resposta específica e suficiente.` +
+                  exemplosTxt +
+                  opcoesTxt +
+                  `\n\n**Pergunta:** ${pAtual.texto}`,
+              },
+            ]);
+          }, 300);
+          return;
+        }
+
+      }
+      // Aceita após 2 tentativas inválidas — zera o contador para próxima pergunta
+      tentativasInvRef.current[step] = 0;
+    }
 
     setMessages((m) => [...m, { role: "user", text }]);
     setInput("");
