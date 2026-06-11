@@ -785,7 +785,6 @@ export const DiagnosticoChat = ({ open, onClose, promptId }: Props) => {
     setSalvandoParcial(true);
     try {
       const r = await enviarParcialCriacao(conversationIdRef.current, snap);
-      exportarProgressoTxt(snap);
       if (!r.ok) {
         setMessages((m) => [
           ...m,
@@ -795,7 +794,7 @@ export const DiagnosticoChat = ({ open, onClose, promptId }: Props) => {
             title: "Progresso não enviado ao servidor",
             text:
               (r.motivo ?? "Falha desconhecida.") +
-              " O arquivo .txt local foi gerado normalmente — use-o para retomar depois.",
+              " Tente novamente em instantes — seu progresso continua salvo neste navegador.",
           },
         ]);
       } else {
@@ -805,7 +804,7 @@ export const DiagnosticoChat = ({ open, onClose, promptId }: Props) => {
             role: "system",
             tone: "save",
             text:
-              "Progresso enviado ao servidor e arquivo .txt baixado. Você pode fechar a página e voltar depois — neste navegador o progresso volta sozinho; em outro dispositivo, importe o arquivo .txt salvo.",
+              "Progresso enviado ao servidor. Você pode fechar a página e voltar depois — neste navegador o progresso volta sozinho.",
           },
         ]);
       }
