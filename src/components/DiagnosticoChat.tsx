@@ -352,6 +352,7 @@ async function enviarBaseFinalCriacao(
   lacunas: string[],
   notasAjuste: string[],
   origemPrefill: { url?: string; sources: string[]; summary: string },
+  promptPersona: string,
 ): Promise<SendResult> {
   const payload = {
     origem: "pagina_implantacao_atendenteai",
@@ -363,6 +364,7 @@ async function enviarBaseFinalCriacao(
     lacunas,
     notas_de_ajuste: notasAjuste,
     prefill: origemPrefill,
+    prompt_persona: promptPersona,
     timestamp: new Date().toISOString(),
   };
   const v = validarPayload(payload);
