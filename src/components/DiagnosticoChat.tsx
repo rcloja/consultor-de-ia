@@ -117,24 +117,26 @@ const ENDPOINT = "https://admin.atendenteai.com.br/api/consultor.php";
  * Lê o ID do agente externo passado via query string (?agente=...).
  * Esse ID é gerado no painel do cliente e usado para atrelar a base
  * de conhecimento construída aqui ao agente correspondente no banco dele.
- * Persiste em sessionStorage para sobreviver a navegações/reloads dentro da SPA.
+ *
+ * IMPORTANTE: NÃO persistimos esse valor em localStorage/sessionStorage.
+ * O backend é a única fonte de verdade — o ID vem sempre da URL.
+ * Mantemos apenas uma referência em memória (módulo) enquanto a aba está aberta,
+ * para suportar navegações internas da SPA que removam o query param.
  */
+let __agenteExternoMem: string | null = null;
 function getAgenteExterno(): string | null {
   try {
     if (typeof window === "undefined") return null;
     const url = new URL(window.location.href);
     const fromUrl = url.searchParams.get("agente");
     if (fromUrl && fromUrl.trim()) {
-      const v = fromUrl.trim().slice(0, 128);
-      try { sessionStorage.setItem("agente_externo_id", v); } catch { /* noop */ }
-      return v;
+      __agenteExternoMem = fromUrl.trim().slice(0, 128);
+      return __agenteExternoMem;
     }
-    try {
-      const cached = sessionStorage.getItem("agente_externo_id");
-      if (cached) return cached;
-    } catch { /* noop */ }
-  } catch { /* noop */ }
-  return null;
+    return __agenteExternoMem;
+  } catch {
+    return __agenteExternoMem;
+  }
 }
 
 interface Props {
