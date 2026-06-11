@@ -1295,11 +1295,18 @@ export const DiagnosticoChat = ({ open, onClose, promptId }: Props) => {
                 <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse-dot" />
                 {modoAtualizacao ? `ID: ${promptId}` : "Consultor de Implantação · online"}
               </div>
-              {agenteExterno && (
+              {agenteExterno ? (
                 <div className="text-[11px] font-medium text-accent flex items-center gap-1.5 mt-0.5">
                   <Globe className="w-3 h-3" />
                   Agente vinculado: #{agenteExterno}
                 </div>
+              ) : (
+                !modoAtualizacao && (
+                  <div className="text-[11px] font-semibold text-destructive flex items-center gap-1.5 mt-0.5 animate-pulse">
+                    <AlertCircle className="w-3 h-3" />
+                    Atenção: clique em "NOVO AGENTE" no sistema AtendenteAI para vincular este diagnóstico.
+                  </div>
+                )
               )}
             </div>
             <div className="flex items-center gap-1">
