@@ -24,7 +24,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DiagnosticoChat } from "@/components/DiagnosticoChat";
-import logoAsset from "@/assets/atendenteai-logo.png.asset.json";
+const LOGO_PATH = `${import.meta.env.BASE_URL}atendenteai-logo.png`;
 
 // Formato aceito para o ID da Base de Conhecimento:
 // 6 a 64 caracteres, letras (a-z, A-Z), números, "-" e "_".
@@ -113,7 +113,7 @@ const Index = () => {
       <header className="sticky top-0 z-40 backdrop-blur-xl bg-background/70 border-b border-border/60">
         <div className="container flex items-center justify-between h-16">
           <a href="#inicio" className="flex items-center gap-2">
-            <img src={logoAsset.url} alt="AtendenteAI" className="w-9 h-9 object-contain" />
+            <img src={LOGO_PATH} alt="AtendenteAI" className="w-9 h-9 object-contain" />
             <span className="font-display font-bold text-lg">AtendenteAI</span>
           </a>
           <nav className="hidden md:flex items-center gap-8 text-sm font-medium text-muted-foreground">
@@ -571,7 +571,7 @@ const Index = () => {
       <footer className="border-t border-border py-10">
         <div className="container flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-muted-foreground">
           <div className="flex items-center gap-2">
-            <img src={logoAsset.url} alt="AtendenteAI" className="w-7 h-7 object-contain" />
+            <img src={LOGO_PATH} alt="AtendenteAI" className="w-7 h-7 object-contain" />
             <span className="font-display font-semibold text-foreground">AtendenteAI</span>
           </div>
           <p>© {new Date().getFullYear()} AtendenteAI — Implantação consultiva de IA.</p>
