@@ -571,7 +571,7 @@ const Index = () => {
       <footer className="border-t border-border py-10">
         <div className="container flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-muted-foreground">
           <div className="flex items-center gap-2">
-            <img src={logoAsset.url} alt="AtendenteAI" className="w-7 h-7 object-contain" />
+            <img src={LOGO_PATH} alt="AtendenteAI" className="w-7 h-7 object-contain" />
             <span className="font-display font-semibold text-foreground">AtendenteAI</span>
           </div>
           <p>© {new Date().getFullYear()} AtendenteAI — Implantação consultiva de IA.</p>
