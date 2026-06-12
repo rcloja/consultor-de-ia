@@ -24,7 +24,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DiagnosticoChat } from "@/components/DiagnosticoChat";
-import logoAsset from "@/assets/atendenteai-logo.png.asset.json";
+const LOGO_PATH = `${import.meta.env.BASE_URL}atendenteai-logo.png`;
 
 // Formato aceito para o ID da Base de Conhecimento:
 // 6 a 64 caracteres, letras (a-z, A-Z), números, "-" e "_".
