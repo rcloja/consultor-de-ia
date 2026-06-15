@@ -265,8 +265,8 @@ async function carregarBaseExistente(
     const jsonStart = starts.length ? Math.min(...starts) : -1;
     const jsonText = trimmed.startsWith("<") && jsonStart >= 0 ? trimmed.slice(jsonStart) : trimmed;
     if (trimmed.startsWith("<") && jsonStart < 0) {
-      console.error("Endpoint retornou HTML/PHP em vez de JSON:", trimmed.slice(0, 200));
       if (/\bnull\s*$/i.test(trimmed)) return { status: "notfound" };
+      console.error("Endpoint retornou HTML/PHP em vez de JSON:", trimmed.slice(0, 200));
       return {
         status: "parse",
         detail:
