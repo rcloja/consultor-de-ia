@@ -16,6 +16,7 @@ import {
   type RespostaInterpretada,
 } from "@/lib/payloadValidation";
 import { RagReviewModal } from "@/components/RagReviewModal";
+import { DiagnosticoSugestoesModal } from "@/components/DiagnosticoSugestoesModal";
 import { AgenteTestChat } from "@/components/AgenteTestChat";
 
 const AGENT_ID = "arquiteto-conhecimento-ia";
