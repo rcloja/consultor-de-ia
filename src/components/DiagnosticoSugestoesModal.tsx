@@ -40,15 +40,11 @@ export function DiagnosticoSugestoesModal({ empresaId, open, onClose }: Props) {
   const carregar = async () => {
     setCarregando(true); setErro(null);
     try {
-      const { data, error } = await supabase
-        .from("sugestoes_base_conhecimento")
-        .select("id, tipo, titulo, conteudo, status, origem, created_at")
-        .eq("empresa_id", empresaId)
-        .eq("status", "pendente")
-        .order("created_at", { ascending: false })
-        .limit(50);
+      const { data, error } = await supabase.functions.invoke("admin-suggestions", {
+        body: { action: "list", empresa_id: empresaId, status: "pendente", limit: 50 },
+      });
       if (error) throw error;
-      setSugestoes((data ?? []) as Sugestao[]);
+      setSugestoes((data?.sugestoes ?? []) as Sugestao[]);
     } catch (e) {
       setErro(e instanceof Error ? e.message : "Falha ao carregar");
     } finally {
@@ -87,10 +83,9 @@ export function DiagnosticoSugestoesModal({ empresaId, open, onClose }: Props) {
         },
       });
       if (rsErr) throw rsErr;
-      const { error: upErr } = await supabase
-        .from("sugestoes_base_conhecimento")
-        .update({ status: "aprovada", aprovado_em: new Date().toISOString() })
-        .eq("id", s.id);
+      const { error: upErr } = await supabase.functions.invoke("admin-suggestions", {
+        body: { action: "update", id: s.id, new_status: "aprovada" },
+      });
       if (upErr) throw upErr;
       setSugestoes((arr) => arr.filter((x) => x.id !== s.id));
     } catch (e) {
@@ -103,10 +98,9 @@ export function DiagnosticoSugestoesModal({ empresaId, open, onClose }: Props) {
   const rejeitar = async (s: Sugestao) => {
     setBusyId(s.id); setErro(null);
     try {
-      const { error } = await supabase
-        .from("sugestoes_base_conhecimento")
-        .update({ status: "rejeitada" })
-        .eq("id", s.id);
+      const { error } = await supabase.functions.invoke("admin-suggestions", {
+        body: { action: "update", id: s.id, new_status: "rejeitada" },
+      });
       if (error) throw error;
       setSugestoes((arr) => arr.filter((x) => x.id !== s.id));
     } catch (e) {
