@@ -31,6 +31,31 @@ const REFS_PROIBIDAS = [
   "vide acima", "vide abaixo", "empresa mencionada", "conforme acima",
 ];
 
+// Frases de fricção que travam a conversão e devem ser evitadas.
+const FRASES_FRICCAO = [
+  "antes preciso entender melhor",
+  "antes de te passar o valor",
+  "antes de falar de preço",
+  "antes de apresentar o valor",
+  "preciso entender melhor seu cenário",
+  "primeiro preciso entender",
+];
+
+// Padrões que indicam intenção de compra explícita do cliente.
+const PADROES_INTENCAO_COMPRA = [
+  /quanto\s+custa/i, /qual\s+o\s+pre[cç]o/i, /quais?\s+(os?\s+)?planos?/i,
+  /como\s+funciona/i, /teste\s+gr[aá]tis/i, /tem\s+fidelidade/i,
+  /como\s+contrato/i, /como\s+contratar/i, /posso\s+cancelar/i,
+  /valor(es)?/i, /mensalidade/i, /assinatura/i,
+];
+
+// CTAs aceitas (heurística: pergunta final, verbo de ação, oferta de próximo passo).
+const PADROES_CTA = [
+  /\?\s*$/, /quer\s+que\s+eu/i, /posso\s+te\s+(indicar|mostrar|explicar|enviar|simular)/i,
+  /vamos\s+(come[cç]ar|agendar|fechar)/i, /quer\s+(iniciar|come[cç]ar|agendar|testar)/i,
+  /te\s+envio/i, /te\s+chamo/i,
+];
+
 async function embed(text: string, apiKey: string): Promise<number[]> {
   const r = await fetch("https://api.openai.com/v1/embeddings", {
     method: "POST",
