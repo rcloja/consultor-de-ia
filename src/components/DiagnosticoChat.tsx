@@ -16,6 +16,7 @@ import {
   type RespostaInterpretada,
 } from "@/lib/payloadValidation";
 import { RagReviewModal } from "@/components/RagReviewModal";
+import { AgenteTestChat } from "@/components/AgenteTestChat";
 
 const AGENT_ID = "arquiteto-conhecimento-ia";
 
@@ -1059,6 +1060,8 @@ export const DiagnosticoChat = ({ open, onClose, promptId, tokenMode = false }: 
   const [forcarCriacao, setForcarCriacao] = useState(false);
   const [ragModalOpen, setRagModalOpen] = useState(false);
   const [ragModalPayload, setRagModalPayload] = useState<{ prompt: string; base: Record<string, string[]> } | null>(null);
+  const [agenteChatOpen, setAgenteChatOpen] = useState(false);
+  const [memoriaSalva, setMemoriaSalva] = useState(false);
 
   // Pré-preenchimento (site + arquivos) — só no modo criação
   type PrefillStage = "form" | "processing" | "review" | "done";
@@ -2541,11 +2544,19 @@ export const DiagnosticoChat = ({ open, onClose, promptId, tokenMode = false }: 
           open={ragModalOpen}
           onClose={() => setRagModalOpen(false)}
           onSaved={(n) => {
+            setMemoriaSalva(true);
             setMessages((m) => [
               ...m,
-              { role: "system", tone: "save", text: `Memória vetorial salva (${n} blocos). O agente já pode usar a busca semântica.` },
+              { role: "system", tone: "save", text: `Memória vetorial salva (${n} blocos). Clique em "Testar agente" para conversar com a IA já usando a base.` },
             ]);
           }}
+        />
+      )}
+      {agenteChatOpen && (
+        <AgenteTestChat
+          empresaId={conversationIdRef.current}
+          open={agenteChatOpen}
+          onClose={() => setAgenteChatOpen(false)}
         />
       )}
       <div className="w-full sm:max-w-5xl bg-card rounded-t-3xl sm:rounded-3xl shadow-elegant border border-border flex flex-col lg:flex-row h-[92vh] sm:h-[680px] overflow-hidden">
@@ -2598,6 +2609,16 @@ export const DiagnosticoChat = ({ open, onClose, promptId, tokenMode = false }: 
               )}
             </div>
             <div className="flex items-center gap-1">
+              {memoriaSalva && (
+                <button
+                  onClick={() => setAgenteChatOpen(true)}
+                  className="px-2.5 py-1.5 rounded-xl bg-primary/10 hover:bg-primary/20 transition text-xs flex items-center gap-1 text-primary font-medium border border-primary/30"
+                  title="Conversar com o agente usando a memória vetorial"
+                >
+                  <Bot className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Testar agente</span>
+                </button>
+              )}
               {!modoAtualizacao && (
                 <>
                   {(messages.length > 0 || Object.keys(base).length > 0) && (
