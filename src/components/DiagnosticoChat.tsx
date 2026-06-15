@@ -2619,14 +2619,24 @@ export const DiagnosticoChat = ({ open, onClose, promptId, tokenMode = false }: 
             </div>
             <div className="flex items-center gap-1">
               {memoriaSalva && (
-                <button
-                  onClick={() => setAgenteChatOpen(true)}
-                  className="px-2.5 py-1.5 rounded-xl bg-primary/10 hover:bg-primary/20 transition text-xs flex items-center gap-1 text-primary font-medium border border-primary/30"
-                  title="Conversar com o agente usando a memória vetorial"
-                >
-                  <Bot className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">Testar agente</span>
-                </button>
+                <>
+                  <button
+                    onClick={() => setAgenteChatOpen(true)}
+                    className="px-2.5 py-1.5 rounded-xl bg-primary/10 hover:bg-primary/20 transition text-xs flex items-center gap-1 text-primary font-medium border border-primary/30"
+                    title="Conversar com o agente usando a memória vetorial"
+                  >
+                    <Bot className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">Testar agente</span>
+                  </button>
+                  <button
+                    onClick={() => setDiagnosticoOpen(true)}
+                    className="px-2.5 py-1.5 rounded-xl bg-accent/10 hover:bg-accent/20 transition text-xs flex items-center gap-1 text-accent font-medium border border-accent/30"
+                    title="Analisar conversas e sugerir melhorias na base"
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">Diagnóstico</span>
+                  </button>
+                </>
               )}
               {!modoAtualizacao && (
                 <>
