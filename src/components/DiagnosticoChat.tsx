@@ -2559,6 +2559,13 @@ export const DiagnosticoChat = ({ open, onClose, promptId, tokenMode = false }: 
           onClose={() => setAgenteChatOpen(false)}
         />
       )}
+      {diagnosticoOpen && (
+        <DiagnosticoSugestoesModal
+          empresaId={conversationIdRef.current}
+          open={diagnosticoOpen}
+          onClose={() => setDiagnosticoOpen(false)}
+        />
+      )}
       <div className="w-full sm:max-w-5xl bg-card rounded-t-3xl sm:rounded-3xl shadow-elegant border border-border flex flex-col lg:flex-row h-[92vh] sm:h-[680px] overflow-hidden">
         {/* Chat principal */}
         <div className="flex-1 flex flex-col min-w-0">
