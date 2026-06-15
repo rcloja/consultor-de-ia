@@ -9,6 +9,7 @@ interface Msg {
   role: "user" | "assistant";
   content: string;
   fontes?: Array<{ categoria: string; titulo: string; similarity: number }>;
+  auditor?: { ok: boolean; refeita: boolean; problemas: string[] };
 }
 
 interface Props {
@@ -53,6 +54,7 @@ export function AgenteTestChat({ empresaId, open, onClose }: Props) {
           role: "assistant",
           content: data?.resposta || "(sem resposta)",
           fontes: data?.fontes ?? [],
+          auditor: data?.auditor,
         },
       ]);
     } catch (e) {
@@ -94,9 +96,19 @@ export function AgenteTestChat({ empresaId, open, onClose }: Props) {
                   ? "bg-primary text-primary-foreground rounded-br-sm"
                   : "bg-muted text-foreground rounded-bl-sm"}`}>
                 {m.content}
-                {m.role === "assistant" && m.fontes && m.fontes.length > 0 && (
-                  <div className="mt-2 flex flex-wrap gap-1">
-                    {m.fontes.slice(0, 5).map((f, j) => (
+                {m.role === "assistant" && (m.fontes?.length || m.auditor) && (
+                  <div className="mt-2 flex flex-wrap gap-1 items-center">
+                    {m.auditor?.refeita && (
+                      <Badge variant="secondary" className="text-[10px] font-normal">
+                        auditor · refeita
+                      </Badge>
+                    )}
+                    {m.auditor && !m.auditor.ok && (
+                      <Badge variant="destructive" className="text-[10px] font-normal" title={m.auditor.problemas.join(" • ")}>
+                        auditor · {m.auditor.problemas.length} alerta(s)
+                      </Badge>
+                    )}
+                    {m.fontes?.slice(0, 5).map((f, j) => (
                       <Badge key={j} variant="outline" className="text-[10px] font-normal">
                         {f.categoria} · {f.titulo.slice(0, 28)} · {(f.similarity * 100).toFixed(0)}%
                       </Badge>
