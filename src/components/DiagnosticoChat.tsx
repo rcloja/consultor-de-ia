@@ -127,14 +127,18 @@ const ENDPOINT = "https://admin.atendenteai.com.br/api/consultor.php";
  * para suportar navegações internas da SPA que removam o query param.
  */
 let __agenteExternoMem: string | null = null;
+const AGENTE_EXTERNO_QUERY_KEYS = ["agente", "arquiteto", "agent", "agent_id"];
+
 function getAgenteExterno(): string | null {
   try {
     if (typeof window === "undefined") return null;
     const url = new URL(window.location.href);
-    const fromUrl = url.searchParams.get("agente");
-    if (fromUrl && fromUrl.trim()) {
-      __agenteExternoMem = fromUrl.trim().slice(0, 128);
-      return __agenteExternoMem;
+    for (const key of AGENTE_EXTERNO_QUERY_KEYS) {
+      const fromUrl = url.searchParams.get(key);
+      if (fromUrl && fromUrl.trim()) {
+        __agenteExternoMem = fromUrl.trim().slice(0, 128);
+        return __agenteExternoMem;
+      }
     }
     return __agenteExternoMem;
   } catch {
