@@ -54,6 +54,7 @@ export function AgenteTestChat({ empresaId, open, onClose }: Props) {
           role: "assistant",
           content: data?.resposta || "(sem resposta)",
           fontes: data?.fontes ?? [],
+          auditor: data?.auditor,
         },
       ]);
     } catch (e) {
