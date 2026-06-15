@@ -8,3 +8,9 @@ verify_jwt = false
 
 [functions.compliance-check]
 verify_jwt = false
+
+[functions.rag-generate]
+verify_jwt = false
+
+[functions.rag-save]
+verify_jwt = false

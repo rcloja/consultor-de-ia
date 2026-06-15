@@ -15,6 +15,7 @@ import {
   interpretarResposta,
   type RespostaInterpretada,
 } from "@/lib/payloadValidation";
+import { RagReviewModal } from "@/components/RagReviewModal";
 
 const AGENT_ID = "arquiteto-conhecimento-ia";
 
@@ -1056,6 +1057,8 @@ export const DiagnosticoChat = ({ open, onClose, promptId, tokenMode = false }: 
   const [carregandoBase, setCarregandoBase] = useState(false);
   const [enviandoUpdate, setEnviandoUpdate] = useState(false);
   const [forcarCriacao, setForcarCriacao] = useState(false);
+  const [ragModalOpen, setRagModalOpen] = useState(false);
+  const [ragModalPayload, setRagModalPayload] = useState<{ prompt: string; base: Record<string, string[]> } | null>(null);
 
   // Pré-preenchimento (site + arquivos) — só no modo criação
   type PrefillStage = "form" | "processing" | "review" | "done";
@@ -1300,9 +1303,13 @@ export const DiagnosticoChat = ({ open, onClose, promptId, tokenMode = false }: 
       {
         role: "agent",
         text:
-          "✅ Implantação concluída a 100%. A persona do agente foi organizada internamente e enviada para o servidor. Se precisar ajustar alguma informação, é só me dizer.",
+          "✅ Implantação concluída a 100%. Agora vou gerar a memória vetorial (RAGs) do agente — abra a tela de revisão para aprovar.",
       },
     ]);
+
+    // Abre o modal de revisão das RAGs (gera prompt principal + 4 RAGs por IA via edge function)
+    setRagModalPayload({ prompt: promptPersona, base: baseFinal });
+    setRagModalOpen(true);
 
   };
 
@@ -2526,6 +2533,21 @@ export const DiagnosticoChat = ({ open, onClose, promptId, tokenMode = false }: 
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-foreground/40 backdrop-blur-sm p-0 sm:p-4 animate-fade-up">
+      {ragModalOpen && ragModalPayload && (
+        <RagReviewModal
+          empresaId={conversationIdRef.current}
+          promptPrincipal={ragModalPayload.prompt}
+          base={ragModalPayload.base}
+          open={ragModalOpen}
+          onClose={() => setRagModalOpen(false)}
+          onSaved={(n) => {
+            setMessages((m) => [
+              ...m,
+              { role: "system", tone: "save", text: `Memória vetorial salva (${n} blocos). O agente já pode usar a busca semântica.` },
+            ]);
+          }}
+        />
+      )}
       <div className="w-full sm:max-w-5xl bg-card rounded-t-3xl sm:rounded-3xl shadow-elegant border border-border flex flex-col lg:flex-row h-[92vh] sm:h-[680px] overflow-hidden">
         {/* Chat principal */}
         <div className="flex-1 flex flex-col min-w-0">
