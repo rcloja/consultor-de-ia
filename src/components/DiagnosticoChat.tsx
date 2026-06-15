@@ -1059,6 +1059,8 @@ export const DiagnosticoChat = ({ open, onClose, promptId, tokenMode = false }: 
   const [forcarCriacao, setForcarCriacao] = useState(false);
   const [ragModalOpen, setRagModalOpen] = useState(false);
   const [ragModalPayload, setRagModalPayload] = useState<{ prompt: string; base: Record<string, string[]> } | null>(null);
+  const [agenteChatOpen, setAgenteChatOpen] = useState(false);
+  const [memoriaSalva, setMemoriaSalva] = useState(false);
 
   // Pré-preenchimento (site + arquivos) — só no modo criação
   type PrefillStage = "form" | "processing" | "review" | "done";
