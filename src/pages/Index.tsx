@@ -31,6 +31,17 @@ const LOGO_PATH = `${import.meta.env.BASE_URL}atendenteai-logo.png`;
 // Aceita também UUIDs e hashes comuns.
 const PROMPT_ID_REGEX = /^[A-Za-z0-9_-]{6,64}$/;
 
+const AGENTE_QUERY_KEYS = ["agente", "arquiteto", "agent", "agent_id"];
+const EDIT_QUERY_KEYS = ["id", "prompt_id", "promptId", "editar", "id_editar", "id_a_editar", "base_id"];
+
+const getQueryValue = (params: URLSearchParams, keys: string[]) => {
+  for (const key of keys) {
+    const value = params.get(key)?.trim();
+    if (value) return value;
+  }
+  return null;
+};
+
 export const validarPromptId = (
   raw: string,
 ): { valido: boolean; valor: string; erro?: string } => {
@@ -59,11 +70,28 @@ const Index = () => {
   const idValidacao = idTrim ? validarPromptId(idInput) : { valido: false, valor: "", erro: undefined };
   const idValido = idValidacao.valido;
 
-  // Carrega ?agente=... (token vindo do botão do AtendenteAI) ou ?id=... (fluxo manual).
-  // ?agente= tem precedência e auto-abre o chat em modo atualização por token.
+  // Carrega links vindos do painel: ?agente=... vincula o agente externo,
+  // enquanto ?id=.../id_a_editar=... indica a Base de Conhecimento a editar.
+  // Se ambos vierem, o ID da base tem precedência no carregamento.
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const agente = params.get("agente");
+    const agente = getQueryValue(params, AGENTE_QUERY_KEYS);
+    const editId = getQueryValue(params, EDIT_QUERY_KEYS);
+    const abrirDireto = !!agente || params.has("chat") || params.has("abrir") || params.has("editar");
+
+    if (editId) {
+      const v = validarPromptId(editId);
+      setIdInput(editId);
+      if (v.valido) {
+        setPromptId(v.valor);
+        setTokenMode(false);
+        if (abrirDireto) setChatOpen(true);
+      } else {
+        setIdErro(v.erro ?? "ID inválido na URL.");
+      }
+      return;
+    }
+
     if (agente) {
       const v = validarPromptId(agente);
       if (v.valido) {
@@ -71,16 +99,6 @@ const Index = () => {
         setTokenMode(true);
         setChatOpen(true);
         return;
-      }
-    }
-    const id = params.get("id");
-    if (id) {
-      const v = validarPromptId(id);
-      setIdInput(id);
-      if (v.valido) {
-        setPromptId(v.valor);
-      } else {
-        setIdErro(v.erro ?? "ID inválido na URL.");
       }
     }
   }, []);

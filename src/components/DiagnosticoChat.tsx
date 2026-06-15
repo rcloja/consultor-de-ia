@@ -127,14 +127,18 @@ const ENDPOINT = "https://admin.atendenteai.com.br/api/consultor.php";
  * para suportar navegações internas da SPA que removam o query param.
  */
 let __agenteExternoMem: string | null = null;
+const AGENTE_EXTERNO_QUERY_KEYS = ["agente", "arquiteto", "agent", "agent_id"];
+
 function getAgenteExterno(): string | null {
   try {
     if (typeof window === "undefined") return null;
     const url = new URL(window.location.href);
-    const fromUrl = url.searchParams.get("agente");
-    if (fromUrl && fromUrl.trim()) {
-      __agenteExternoMem = fromUrl.trim().slice(0, 128);
-      return __agenteExternoMem;
+    for (const key of AGENTE_EXTERNO_QUERY_KEYS) {
+      const fromUrl = url.searchParams.get(key);
+      if (fromUrl && fromUrl.trim()) {
+        __agenteExternoMem = fromUrl.trim().slice(0, 128);
+        return __agenteExternoMem;
+      }
     }
     return __agenteExternoMem;
   } catch {
@@ -230,8 +234,11 @@ async function carregarBaseExistente(
 ): Promise<LoadResult> {
   let resp: Response;
   const qs = modo === "token" ? "token" : "id";
+  const params = new URLSearchParams({ [qs]: id });
+  const agenteExterno = getAgenteExterno();
+  if (modo === "id" && agenteExterno) params.set("token", agenteExterno);
   try {
-    resp = await fetch(`${ENDPOINT}?${qs}=${encodeURIComponent(id)}`, {
+    resp = await fetch(`${ENDPOINT}?${params.toString()}`, {
       method: "GET",
       headers: { Accept: "application/json" },
     });
@@ -252,19 +259,24 @@ async function carregarBaseExistente(
       return { status: "parse", detail: "Resposta vazia do servidor." };
     }
 
-    // Resposta HTML/PHP (ex.: "<br /><b>Warning</b>...") — não é JSON válido
-    if (trimmed.startsWith("<")) {
+    const jsonStartObj = trimmed.indexOf("{");
+    const jsonStartArr = trimmed.indexOf("[");
+    const starts = [jsonStartObj, jsonStartArr].filter((n) => n >= 0);
+    const jsonStart = starts.length ? Math.min(...starts) : -1;
+    const jsonText = trimmed.startsWith("<") && jsonStart >= 0 ? trimmed.slice(jsonStart) : trimmed;
+    if (trimmed.startsWith("<") && jsonStart < 0) {
+      if (/\bnull\s*$/i.test(trimmed)) return { status: "notfound" };
       console.error("Endpoint retornou HTML/PHP em vez de JSON:", trimmed.slice(0, 200));
       return {
         status: "parse",
         detail:
-          "O servidor retornou HTML/PHP em vez de JSON (provável warning/notice do PHP). Verifique o endpoint consultor.php e garanta Content-Type: application/json sem outputs extras.",
+          "O servidor retornou HTML/PHP em vez de JSON. Se houver warnings antes do JSON, corrija o endpoint consultor.php para não emitir outputs extras.",
       };
     }
 
     let data: unknown;
     try {
-      data = JSON.parse(trimmed);
+      data = JSON.parse(jsonText);
     } catch (e) {
       const detail = e instanceof Error ? e.message : String(e);
       console.error("Falha ao parsear JSON da base:", detail, trimmed.slice(0, 200));
