@@ -812,75 +812,198 @@ function ehChaveInterna(k: string): boolean {
   return false;
 }
 
+// Frase padrão obrigatória para responder a qualquer informação ausente.
+const RESPOSTA_AUSENCIA =
+  '"Não encontrei essa informação na minha base de conhecimento atual. Posso encaminhar sua dúvida para nossa equipe."';
+
+// Detecta itens vagos/internos que NÃO podem entrar na base estruturada.
+function ehItemVago(s: string): boolean {
+  const t = (s ?? "").trim().toLowerCase();
+  if (!t) return true;
+  if (t.length < 3) return true;
+  const padroes = [
+    /^talvez/, /^quero (alterar|atualizar|mudar)/, /^acho que/,
+    /^n[ãa]o sei/, /^a definir/, /^pendente/, /^revis[ãa]o/,
+    /^observa[çc][ãa]o interna/, /^nota interna/,
+  ];
+  return padroes.some((r) => r.test(t));
+}
+
+function limpar(itens: string[]): string[] {
+  return itens.map((s) => (s ?? "").trim()).filter((s) => s && !ehItemVago(s));
+}
+
 function gerarPromptPersona(
   base: Record<string, string[]>,
-  // notasAjuste mantido por compatibilidade de assinatura; NÃO é mais
-  // anexado ao prompt — a cada alteração o prompt é regerado do zero a
-  // partir da base atualizada, sem bloco de "Ajustes Recentes".
+  // notasAjuste mantido por compatibilidade de assinatura.
   _notasAjuste: string[] = [],
 ): string {
   const nome = derivarNomeAgente(base);
-  const get = (k: string) =>
-    (base[k] ?? []).map((s) => (s ?? "").trim()).filter(Boolean);
-  const bloco = (titulo: string, itens: string[]) =>
-    itens.length ? `## ${titulo}\n${itens.map((i) => `- ${i}`).join("\n")}` : "";
+  const get = (k: string) => limpar(base[k] ?? []);
+  const lista = (itens: string[]) =>
+    itens.length ? itens.map((i) => `- ${i}`).join("\n") : `- ${RESPOSTA_AUSENCIA}`;
+  const listaOuAusencia = (itens: string[], msg: string) =>
+    itens.length ? itens.map((i) => `- ${i}`).join("\n") : `- (sem informação cadastrada — usar resposta padrão: ${msg})`;
 
-  const secoes: string[] = [];
-  secoes.push(`# Persona: ${nome}`);
-  secoes.push(
-    `Você é **${nome}**, assistente virtual oficial da empresa. ` +
-      `Sua missão é atender clientes com excelência, respeitando integralmente as informações, políticas e tom de voz definidos nesta base de conhecimento.`,
+  const tom =
+    get("Termos do Segmento")[0] ??
+    "Formal, cordial e objetivo. Português do Brasil.";
+
+  const empresaItens = get("Empresa");
+  const publico = get("Público-Alvo");
+  const produtos = get("Produtos");
+  const servicos = get("Serviços");
+  const diferenciais = get("Diferenciais");
+  const processo = get("Processo Comercial");
+  const fluxo = get("Fluxo de Atendimento");
+  const politicas = get("Políticas");
+  const faq = get("FAQ");
+  const regras = get("Regras do Agente");
+
+  const partes: string[] = [];
+
+  // H1
+  partes.push(`# Base de Conhecimento — Agente ${nome}`);
+
+  // PERSONA
+  partes.push(
+    `## 1. PERSONA
+- Nome do agente: ${nome}
+- Objetivo: atender clientes e prospects da empresa com clareza, precisão e dentro do escopo desta base.
+- Tom de voz: ${tom}`,
   );
 
-  const ordem: Array<[string, string]> = [
-    ["Empresa", "Sobre a Empresa"],
-    ["Público-Alvo", "Público-Alvo"],
-    ["Produtos", "Produtos"],
-    ["Serviços", "Serviços"],
-    ["Diferenciais", "Diferenciais Competitivos"],
-    ["Processo Comercial", "Processo Comercial"],
-    ["Fluxo de Atendimento", "Fluxo de Atendimento"],
-    ["FAQ", "Perguntas Frequentes"],
-    ["Objeções", "Objeções e Respostas"],
-    ["Políticas", "Políticas e Regras"],
-    ["Casos de Sucesso", "Casos de Sucesso"],
-    ["Termos do Segmento", "Vocabulário do Segmento"],
-    ["Regras do Agente", "Regras de Conduta do Agente"],
-  ];
-  for (const [chave, titulo] of ordem) {
-    if (ehChaveInterna(chave)) continue; // proteção dupla
-    let itens = get(chave);
-    if (itens.length === 0 && DEFAULTS_GENERICOS[chave]) {
-      itens = DEFAULTS_GENERICOS[chave];
-    }
-    const b = bloco(titulo, itens);
-    if (b) secoes.push(b);
-  }
-  // Inclui quaisquer chaves extras que venham da base (servidor/atualização),
-  // exceto chaves já mapeadas e chaves internas bloqueadas.
-  const mapeadas = new Set(ordem.map(([k]) => normalizarChave(k)));
-  for (const [k, v] of Object.entries(base)) {
-    const n = normalizarChave(k);
-    if (mapeadas.has(n)) continue;
-    if (ehChaveInterna(k)) continue;
-    const itens = (Array.isArray(v) ? v : [v as unknown as string])
-      .map((s) => (typeof s === "string" ? s.trim() : ""))
-      .filter(Boolean);
-    const b = bloco(k, itens);
-    if (b) secoes.push(b);
-  }
-
-
-  secoes.push(
-    `## Instruções Operacionais\n` +
-      `- Responder sempre em português, aplicando o vocabulário e o tom de voz definidos na seção "Vocabulário do Segmento".\n` +
-      `- Basear-se exclusivamente nas informações desta base de conhecimento; nunca inventar dados.\n` +
-      `- Aplicar as políticas e regras de conduta sem exceções.\n` +
-      `- Encaminhar para atendimento humano quando a solicitação fugir do escopo.\n` +
-      `- Confirmar dados sensíveis antes de registrar pedidos ou alterações.`,
+  // REGRA ABSOLUTA (ANTI-ALUCINAÇÃO)
+  partes.push(
+    `## 2. REGRA ABSOLUTA (ANTI-ALUCINAÇÃO)
+- Não inventar informações.
+- Não estimar valores, prazos ou números.
+- Não completar listas com itens não cadastrados.
+- Não assumir integrações (CRM, ERP, APIs, apps, etc.).
+- Não criar preços.
+- Não criar funcionalidades.
+- Não criar políticas.
+- Se a informação não estiver nesta base, responder exatamente:
+  ${RESPOSTA_AUSENCIA}`,
   );
 
-  return secoes.filter(Boolean).join("\n\n");
+  // SOBRE A EMPRESA
+  const nomeEmpresa = empresaItens[0] ?? "";
+  const descricaoEmpresa = empresaItens[1] ?? "";
+  const segmentoEmpresa = empresaItens[2] ?? "";
+  partes.push(
+    `## 3. SOBRE A EMPRESA
+- Nome: ${nomeEmpresa || `(não cadastrado — usar: ${RESPOSTA_AUSENCIA})`}
+- Descrição curta: ${descricaoEmpresa || `(não cadastrada — usar: ${RESPOSTA_AUSENCIA})`}
+- Segmento: ${segmentoEmpresa || `(não cadastrado — usar: ${RESPOSTA_AUSENCIA})`}`,
+  );
+
+  // PÚBLICO-ALVO (separado por categorias)
+  const cat = (rotulo: string) =>
+    publico.filter((p) => p.toLowerCase().startsWith(rotulo.toLowerCase()));
+  const empresas = cat("Empresa");
+  const parceiros = cat("Parceiro");
+  const multiplicadores = cat("Multiplicador");
+  const restantes = publico.filter(
+    (p) => ![...empresas, ...parceiros, ...multiplicadores].includes(p),
+  );
+  partes.push(
+    `## 4. PÚBLICO-ALVO
+### 4.1 Empresas
+${listaOuAusencia(empresas.length ? empresas : restantes, RESPOSTA_AUSENCIA)}
+### 4.2 Parceiros
+${listaOuAusencia(parceiros, RESPOSTA_AUSENCIA)}
+### 4.3 Multiplicadores
+${listaOuAusencia(multiplicadores, RESPOSTA_AUSENCIA)}`,
+  );
+
+  // PRODUTOS
+  partes.push(`## 5. PRODUTOS
+${lista(produtos)}`);
+
+  // FUNCIONALIDADES — uma seção por item de "Serviços"
+  const funcBlocos = servicos.length
+    ? servicos
+        .map((s, i) => {
+          const [titulo, ...resto] = s.split(/[:\-—]/);
+          const bullets = resto.join(":").trim();
+          const linhas = bullets
+            ? bullets.split(/[;,]/).map((x) => x.trim()).filter(Boolean)
+            : [];
+          return `### 6.${i + 1} ${titulo.trim()}
+${linhas.length ? linhas.map((l) => `- ${l}`).join("\n") : `- ${RESPOSTA_AUSENCIA}`}`;
+        })
+        .join("\n")
+    : `- ${RESPOSTA_AUSENCIA}`;
+  partes.push(`## 6. FUNCIONALIDADES
+${funcBlocos}`);
+
+  // DIFERENCIAIS
+  partes.push(`## 7. DIFERENCIAIS
+${lista(diferenciais)}`);
+
+  // PROCESSO COMERCIAL
+  partes.push(
+    `## 8. PROCESSO COMERCIAL
+Fluxo: Problema → Impacto → Benefício → Solução → Plano
+${lista(processo.length ? processo : fluxo)}`,
+  );
+
+  // POLÍTICAS
+  const polCat = (rotulo: string) =>
+    politicas.find((p) => p.toLowerCase().includes(rotulo.toLowerCase())) ?? "";
+  partes.push(
+    `## 9. POLÍTICAS
+- Cancelar: ${polCat("cancel") || RESPOSTA_AUSENCIA}
+- Teste grátis: ${polCat("teste") || RESPOSTA_AUSENCIA}
+- Upgrade: ${polCat("upgrade") || RESPOSTA_AUSENCIA}
+- Downgrade: ${polCat("downgrade") || RESPOSTA_AUSENCIA}`,
+  );
+
+  // O QUE NÃO DEVE SER ASSUMIDO
+  partes.push(
+    `## 10. O QUE NÃO DEVE SER ASSUMIDO
+- Não assumir integração com CRM.
+- Não assumir integração com ERP.
+- Não assumir APIs disponíveis.
+- Não assumir aplicativos móveis ou desktop.
+- Não assumir integrações com terceiros.
+- Não assumir recursos futuros ou roadmap.
+- Não assumir funcionalidades que não estejam descritas na seção 6.
+- Não assumir preços, descontos ou condições não cadastrados.`,
+  );
+
+  // PROCEDIMENTO PARA INFORMAÇÕES AUSENTES
+  partes.push(
+    `## 11. PROCEDIMENTO PARA INFORMAÇÕES AUSENTES
+Sempre que a informação solicitada não estiver nesta base, responder exatamente:
+${RESPOSTA_AUSENCIA}`,
+  );
+
+  // EXEMPLOS DE COMPORTAMENTO
+  const faqExemplos = faq.slice(0, 2).map((f, i) => {
+    const [pergunta, ...resp] = f.split("?");
+    const p = (pergunta || f).trim() + (f.includes("?") ? "?" : "");
+    const r = resp.join("?").trim() || RESPOSTA_AUSENCIA;
+    return `### 12.${i + 1} Exemplo
+- Pergunta: "${p}"
+- Resposta: "${r}"`;
+  });
+  partes.push(
+    `## 12. EXEMPLOS DE COMPORTAMENTO
+### 12.0 Informação ausente (obrigatório)
+- Pergunta: "Vocês possuem ERP?"
+- Resposta: ${RESPOSTA_AUSENCIA}
+${faqExemplos.join("\n")}`.trim(),
+  );
+
+  // REGRAS DE CONDUTA (do agente)
+  if (regras.length) {
+    partes.push(`## 13. REGRAS DE CONDUTA DO AGENTE
+${lista(regras)}`);
+  }
+
+  return partes.filter(Boolean).join("\n\n");
 }
 
 export const DiagnosticoChat = ({ open, onClose, promptId, tokenMode = false }: Props) => {
