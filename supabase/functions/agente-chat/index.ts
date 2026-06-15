@@ -31,31 +31,6 @@ const REFS_PROIBIDAS = [
   "vide acima", "vide abaixo", "empresa mencionada", "conforme acima",
 ];
 
-// Frases de fricção que travam a conversão e devem ser evitadas.
-const FRASES_FRICCAO = [
-  "antes preciso entender melhor",
-  "antes de te passar o valor",
-  "antes de falar de preço",
-  "antes de apresentar o valor",
-  "preciso entender melhor seu cenário",
-  "primeiro preciso entender",
-];
-
-// Padrões que indicam intenção de compra explícita do cliente.
-const PADROES_INTENCAO_COMPRA = [
-  /quanto\s+custa/i, /qual\s+o\s+pre[cç]o/i, /quais?\s+(os?\s+)?planos?/i,
-  /como\s+funciona/i, /teste\s+gr[aá]tis/i, /tem\s+fidelidade/i,
-  /como\s+contrato/i, /como\s+contratar/i, /posso\s+cancelar/i,
-  /valor(es)?/i, /mensalidade/i, /assinatura/i,
-];
-
-// CTAs aceitas (heurística: pergunta final, verbo de ação, oferta de próximo passo).
-const PADROES_CTA = [
-  /\?\s*$/, /quer\s+que\s+eu/i, /posso\s+te\s+(indicar|mostrar|explicar|enviar|simular)/i,
-  /vamos\s+(come[cç]ar|agendar|fechar)/i, /quer\s+(iniciar|come[cç]ar|agendar|testar)/i,
-  /te\s+envio/i, /te\s+chamo/i,
-];
-
 async function embed(text: string, apiKey: string): Promise<number[]> {
   const r = await fetch("https://api.openai.com/v1/embeddings", {
     method: "POST",
@@ -75,21 +50,12 @@ function montaContexto(chunks: Array<{ categoria: string; titulo: string; conteu
 }
 
 const REGRAS_RESPOSTA = `REGRAS DE RESPOSTA (obrigatórias):
-- Use APENAS fatos dos TRECHOS DA BASE e do seu prompt principal. Não invente preços, prazos, garantias ou políticas.
-- Se a base não trouxer a resposta (exceto preços já listados), diga com naturalidade que vai confirmar com a equipe e siga conduzindo a conversa para o fechamento.
-- Estilo WhatsApp: máximo 4 linhas, 1 parágrafo, frases curtas e diretas. No máximo 1 pergunta por vez.
-- Português do Brasil, tom de consultor comercial experiente — simpático, objetivo, transparente em preços, orientado a conversão. Nunca burocrático ou entrevistador. Máximo 1 emoji discreto (🙂 ou 👍).
+- Use APENAS fatos dos TRECHOS DA BASE abaixo e do seu prompt principal. Não invente preços, prazos, garantias ou políticas.
+- Se a base não trouxer a resposta, diga com naturalidade que vai confirmar com a equipe e siga a conversa.
+- Estilo WhatsApp: 1 a 3 frases curtas, até ~300 caracteres. No máximo 1 pergunta por vez.
+- Português do Brasil, tom cordial e profissional. Máximo 1 emoji discreto (🙂 ou 👍) quando fizer sentido.
 - NUNCA escreva "acima", "abaixo", "mencionado", "anteriormente", "conforme citado", "texto anterior".
-- NUNCA use frases de fricção como "antes preciso entender melhor", "antes de te passar o valor", "primeiro preciso entender".
-- Não cite "trechos", "documento", "base de conhecimento" ou números de referência ao cliente.
-
-COMPORTAMENTO COMERCIAL:
-- Diagnóstico rápido: faça no máximo 2 perguntas (segmento, como atende hoje, principal dificuldade). Se o cliente já tiver dado essas informações espontaneamente, NÃO pergunte de novo — avance para a recomendação.
-- Intenção de compra: se o cliente perguntar preço, planos, como funciona, teste grátis, fidelidade, como contratar ou cancelamento, responda DIRETO, sem novas perguntas investigativas.
-- Apresentação de preços: nunca esconda valores. Quando o cliente perguntar preço, demonstrar intenção ou já tiver explicado a necessidade, apresente imediatamente os planos disponíveis na base.
-- Recomendação: após entender minimamente o cenário, sugira o plano mais adequado como um consultor.
-- Fluxo: Entender → Recomendar → Fechar. Evite o ciclo "perguntar → perguntar → perguntar → explicar demais".
-- CTA obrigatória: toda resposta de cunho comercial deve terminar com uma chamada para ação clara (ex.: "Quer que eu te indique o plano ideal?", "Posso simular sua operação?", "Quer iniciar um teste gratuito?").`;
+- Não cite "trechos", "documento", "base de conhecimento" ou números de referência ao cliente.`;
 
 interface AuditoriaResultado {
   ok: boolean;
@@ -100,21 +66,11 @@ function auditar(resposta: string, perguntaUsuario: string): AuditoriaResultado 
   const problemas: string[] = [];
   const r = resposta.trim();
   if (!r) problemas.push("Resposta vazia.");
-  if (r.length > 600) problemas.push(`Resposta muito longa (${r.length} caracteres). Reduza para uma mensagem curta de WhatsApp (máx. 4 linhas).`);
-  // Máximo de 4 linhas
-  const linhas = r.split(/\r?\n/).filter((l) => l.trim().length > 0);
-  if (linhas.length > 4) problemas.push(`Resposta com ${linhas.length} linhas. Reduza para no máximo 4 linhas.`);
+  if (r.length > 600) problemas.push(`Resposta muito longa (${r.length} caracteres). Reduza para no máximo 300.`);
   const baixo = r.toLowerCase();
   for (const ref of REFS_PROIBIDAS) {
     if (baixo.includes(ref)) {
       problemas.push(`Contém referência proibida ("${ref}"). Reescreva sem citar partes "acima/abaixo".`);
-      break;
-    }
-  }
-  // Frases de fricção (esconder preço, adiar resposta)
-  for (const fric of FRASES_FRICCAO) {
-    if (baixo.includes(fric)) {
-      problemas.push(`Contém frase de fricção ("${fric}"). Responda direto, apresente o preço/solução e finalize com uma CTA.`);
       break;
     }
   }
@@ -124,17 +80,7 @@ function auditar(resposta: string, perguntaUsuario: string): AuditoriaResultado 
   // perguntas: máximo 1
   const perguntas = (r.match(/\?/g) ?? []).length;
   if (perguntas > 1) problemas.push("Fez mais de uma pergunta. Faça no máximo uma por vez.");
-
-  // Detecta intenção comercial na pergunta do cliente -> exige CTA na resposta
-  const temIntencaoCompra = PADROES_INTENCAO_COMPRA.some((re) => re.test(perguntaUsuario));
-  if (temIntencaoCompra) {
-    const temCTA = PADROES_CTA.some((re) => re.test(r));
-    if (!temCTA) {
-      problemas.push("Cliente demonstrou intenção comercial: finalize a resposta com uma CTA clara (ex.: 'Quer que eu te indique o plano ideal?', 'Posso simular sua operação?').");
-    }
-  }
-
-  // cobertura mínima: se a pergunta era razoável e a resposta não toca nela
+  // cobertura mínima: se a pergunta era curta e a resposta não tem nenhuma palavra-chave em comum
   const palsPerg = perguntaUsuario.toLowerCase().match(/[a-záéíóúâêôãõç]{4,}/gi) ?? [];
   if (palsPerg.length >= 2) {
     const hit = palsPerg.some((p) => baixo.includes(p.toLowerCase()));
