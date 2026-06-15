@@ -121,6 +121,7 @@ const Index = () => {
             <a href="#mapear" className="hover:text-foreground transition">O que mapeia</a>
             <a href="#como-funciona" className="hover:text-foreground transition">Como funciona</a>
             <a href="#base" className="hover:text-foreground transition">Base gerada</a>
+            <a href="/satisfacao" className="hover:text-foreground transition">Satisfação</a>
           </nav>
           <Button onClick={openChat} className="rounded-xl hidden sm:inline-flex">
             Começar
