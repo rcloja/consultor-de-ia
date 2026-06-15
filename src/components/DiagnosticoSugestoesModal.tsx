@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, X, Sparkles, Check, Trash2, AlertCircle, RefreshCw, Lightbulb } from "lucide-react";
+import { Loader2, X, Sparkles, Check, Trash2, AlertCircle, RefreshCw, Lightbulb, FlaskConical } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
 interface Sugestao {
@@ -36,6 +36,22 @@ export function DiagnosticoSugestoesModal({ empresaId, open, onClose }: Props) {
   const [erro, setErro] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [semeando, setSemeando] = useState(false);
+
+  const semear = async () => {
+    setSemeando(true); setErro(null); setAviso(null);
+    try {
+      const { data, error } = await supabase.functions.invoke("admin-seed-conversas", {
+        body: { empresa_id: empresaId },
+      });
+      if (error) throw error;
+      setAviso(`${data?.inseridas ?? 0} conversa(s) de teste inseridas. Agora clique em "Analisar conversas".`);
+    } catch (e) {
+      setErro(e instanceof Error ? e.message : "Falha ao semear");
+    } finally {
+      setSemeando(false);
+    }
+  };
 
   const carregar = async () => {
     setCarregando(true); setErro(null);
@@ -128,14 +144,20 @@ export function DiagnosticoSugestoesModal({ empresaId, open, onClose }: Props) {
           <Button variant="ghost" size="icon" onClick={onClose}><X className="w-4 h-4" /></Button>
         </header>
 
-        <div className="px-6 py-3 border-b border-border flex items-center justify-between gap-2">
+        <div className="px-6 py-3 border-b border-border flex items-center justify-between gap-2 flex-wrap">
           <p className="text-xs text-muted-foreground">
             {sugestoes.length} sugestão(ões) pendente(s).
           </p>
-          <Button size="sm" onClick={gerar} disabled={gerando}>
-            {gerando ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <Sparkles className="w-3.5 h-3.5 mr-1" />}
-            Analisar conversas
-          </Button>
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" onClick={semear} disabled={semeando} title="Insere 5 conversas fictícias para testar o diagnóstico">
+              {semeando ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <FlaskConical className="w-3.5 h-3.5 mr-1" />}
+              Semear teste
+            </Button>
+            <Button size="sm" onClick={gerar} disabled={gerando}>
+              {gerando ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <Sparkles className="w-3.5 h-3.5 mr-1" />}
+              Analisar conversas
+            </Button>
+          </div>
         </div>
 
         <div className="flex-1 overflow-y-auto px-6 py-4 space-y-3">
