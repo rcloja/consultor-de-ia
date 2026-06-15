@@ -129,14 +129,13 @@ Deno.serve(async (req) => {
   }
 
   if (Array.isArray(body.history)) {
-    // Bloqueia role=system vindo do cliente (prompt injection) e limita tamanho.
     for (const m of body.history.slice(-10)) {
       if (
         m &&
         typeof m.content === "string" &&
-        (m.role === "user" || m.role === "assistant")
+        (m.role === "user" || m.role === "assistant" || m.role === "system")
       ) {
-        messages.push({ role: m.role, content: m.content.slice(0, 4000) });
+        messages.push({ role: m.role, content: m.content });
       }
     }
   }

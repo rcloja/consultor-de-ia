@@ -24,15 +24,3 @@ verify_jwt = false
 [functions.diagnostico-conversas]
 verify_jwt = false
 
-[functions.admin-reviews]
-verify_jwt = false
-
-[functions.admin-suggestions]
-verify_jwt = false
-
-[functions.admin-seed-conversas]
-verify_jwt = false
-
-
-
-
