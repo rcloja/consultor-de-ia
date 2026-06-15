@@ -162,6 +162,18 @@ Deno.serve(async (req) => {
   const promptPrincipal = promptRow?.conteudo?.trim() ||
     "Você é um agente de atendimento profissional pelo WhatsApp. Seja claro, cordial e objetivo.";
 
+  // Memória do cliente (se cliente_id veio)
+  let memoriaCliente: Record<string, unknown> | null = null;
+  if (body.cliente_id) {
+    const { data: mc } = await admin
+      .from("cliente_memoria")
+      .select("nome, cidade, empresa, interesses, produtos_vistos, objecoes, probabilidade_compra, resumo")
+      .eq("empresa_id", body.empresa_id)
+      .eq("cliente_id", body.cliente_id)
+      .maybeSingle();
+    memoriaCliente = mc ?? null;
+  }
+
   // Embedding + busca semântica
   let chunks: Array<{ categoria: string; titulo: string; conteudo: string; similarity: number }> = [];
   let buscaErro: string | null = null;
@@ -180,8 +192,11 @@ Deno.serve(async (req) => {
   }
 
   const contexto = montaContexto(chunks);
+  const blocoMemoria = memoriaCliente
+    ? `\n\n---\nMEMÓRIA DESTE CLIENTE (use para personalizar, mas não cite literalmente):\n${JSON.stringify(memoriaCliente, null, 2)}`
+    : "";
   const system =
-    `${promptPrincipal}\n\n---\n${REGRAS_RESPOSTA}\n\n---\nTRECHOS DA BASE (use apenas estes fatos):\n${contexto}`;
+    `${promptPrincipal}\n\n---\n${REGRAS_RESPOSTA}\n\n---\nTRECHOS DA BASE (use apenas estes fatos):\n${contexto}${blocoMemoria}`;
   const historico = body.messages.slice(-12).map((m) => ({ role: m.role, content: m.content }));
 
   let resposta = "";
