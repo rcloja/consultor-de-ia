@@ -30,4 +30,9 @@ verify_jwt = false
 [functions.admin-suggestions]
 verify_jwt = false
 
+[functions.admin-seed-conversas]
+verify_jwt = false
+
+
+
 
