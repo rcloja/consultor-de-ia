@@ -19,6 +19,7 @@ interface ReqBody {
   empresa_id: string;
   messages: Msg[];
   top_k?: number;
+  cliente_id?: string;
 }
 
 const EMBED_MODEL = "text-embedding-3-small";
@@ -161,6 +162,18 @@ Deno.serve(async (req) => {
   const promptPrincipal = promptRow?.conteudo?.trim() ||
     "Você é um agente de atendimento profissional pelo WhatsApp. Seja claro, cordial e objetivo.";
 
+  // Memória do cliente (se cliente_id veio)
+  let memoriaCliente: Record<string, unknown> | null = null;
+  if (body.cliente_id) {
+    const { data: mc } = await admin
+      .from("cliente_memoria")
+      .select("nome, cidade, empresa, interesses, produtos_vistos, objecoes, probabilidade_compra, resumo")
+      .eq("empresa_id", body.empresa_id)
+      .eq("cliente_id", body.cliente_id)
+      .maybeSingle();
+    memoriaCliente = mc ?? null;
+  }
+
   // Embedding + busca semântica
   let chunks: Array<{ categoria: string; titulo: string; conteudo: string; similarity: number }> = [];
   let buscaErro: string | null = null;
@@ -179,8 +192,11 @@ Deno.serve(async (req) => {
   }
 
   const contexto = montaContexto(chunks);
+  const blocoMemoria = memoriaCliente
+    ? `\n\n---\nMEMÓRIA DESTE CLIENTE (use para personalizar, mas não cite literalmente):\n${JSON.stringify(memoriaCliente, null, 2)}`
+    : "";
   const system =
-    `${promptPrincipal}\n\n---\n${REGRAS_RESPOSTA}\n\n---\nTRECHOS DA BASE (use apenas estes fatos):\n${contexto}`;
+    `${promptPrincipal}\n\n---\n${REGRAS_RESPOSTA}\n\n---\nTRECHOS DA BASE (use apenas estes fatos):\n${contexto}${blocoMemoria}`;
   const historico = body.messages.slice(-12).map((m) => ({ role: m.role, content: m.content }));
 
   let resposta = "";
@@ -221,6 +237,37 @@ Deno.serve(async (req) => {
       status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
+
+  // Log da conversa (fire-and-forget)
+  const fontesPayload = chunks.map((c) => ({
+    categoria: c.categoria, titulo: c.titulo, similarity: Number(c.similarity.toFixed(3)),
+  }));
+  admin.from("conversas_agente").insert({
+    empresa_id: body.empresa_id,
+    cliente_id: body.cliente_id ?? null,
+    pergunta: ultima.content.slice(0, 4000),
+    resposta: resposta.slice(0, 4000),
+    fontes: fontesPayload,
+    auditor: { ok: auditoria.ok, problemas: auditoria.problemas, refeita },
+  }).then(({ error }) => { if (error) console.error("log conversa:", error); });
+
+  // Atualiza memória do cliente em background (não bloqueia resposta)
+  if (body.cliente_id && body.messages.length >= 2) {
+    const mensagensParaMem = [...body.messages, { role: "assistant" as const, content: resposta }];
+    fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/cliente-memoria-update`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+      },
+      body: JSON.stringify({
+        empresa_id: body.empresa_id,
+        cliente_id: body.cliente_id,
+        mensagens: mensagensParaMem,
+      }),
+    }).catch((e) => console.error("memoria-update bg:", e));
+  }
+
 
   return new Response(
     JSON.stringify({

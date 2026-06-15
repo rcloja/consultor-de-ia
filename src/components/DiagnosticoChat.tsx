@@ -16,6 +16,7 @@ import {
   type RespostaInterpretada,
 } from "@/lib/payloadValidation";
 import { RagReviewModal } from "@/components/RagReviewModal";
+import { DiagnosticoSugestoesModal } from "@/components/DiagnosticoSugestoesModal";
 import { AgenteTestChat } from "@/components/AgenteTestChat";
 
 const AGENT_ID = "arquiteto-conhecimento-ia";
@@ -1061,6 +1062,7 @@ export const DiagnosticoChat = ({ open, onClose, promptId, tokenMode = false }: 
   const [ragModalOpen, setRagModalOpen] = useState(false);
   const [ragModalPayload, setRagModalPayload] = useState<{ prompt: string; base: Record<string, string[]> } | null>(null);
   const [agenteChatOpen, setAgenteChatOpen] = useState(false);
+  const [diagnosticoOpen, setDiagnosticoOpen] = useState(false);
   const [memoriaSalva, setMemoriaSalva] = useState(false);
 
   // Pré-preenchimento (site + arquivos) — só no modo criação
@@ -2559,6 +2561,13 @@ export const DiagnosticoChat = ({ open, onClose, promptId, tokenMode = false }: 
           onClose={() => setAgenteChatOpen(false)}
         />
       )}
+      {diagnosticoOpen && (
+        <DiagnosticoSugestoesModal
+          empresaId={conversationIdRef.current}
+          open={diagnosticoOpen}
+          onClose={() => setDiagnosticoOpen(false)}
+        />
+      )}
       <div className="w-full sm:max-w-5xl bg-card rounded-t-3xl sm:rounded-3xl shadow-elegant border border-border flex flex-col lg:flex-row h-[92vh] sm:h-[680px] overflow-hidden">
         {/* Chat principal */}
         <div className="flex-1 flex flex-col min-w-0">
@@ -2610,14 +2619,24 @@ export const DiagnosticoChat = ({ open, onClose, promptId, tokenMode = false }: 
             </div>
             <div className="flex items-center gap-1">
               {memoriaSalva && (
-                <button
-                  onClick={() => setAgenteChatOpen(true)}
-                  className="px-2.5 py-1.5 rounded-xl bg-primary/10 hover:bg-primary/20 transition text-xs flex items-center gap-1 text-primary font-medium border border-primary/30"
-                  title="Conversar com o agente usando a memória vetorial"
-                >
-                  <Bot className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">Testar agente</span>
-                </button>
+                <>
+                  <button
+                    onClick={() => setAgenteChatOpen(true)}
+                    className="px-2.5 py-1.5 rounded-xl bg-primary/10 hover:bg-primary/20 transition text-xs flex items-center gap-1 text-primary font-medium border border-primary/30"
+                    title="Conversar com o agente usando a memória vetorial"
+                  >
+                    <Bot className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">Testar agente</span>
+                  </button>
+                  <button
+                    onClick={() => setDiagnosticoOpen(true)}
+                    className="px-2.5 py-1.5 rounded-xl bg-accent/10 hover:bg-accent/20 transition text-xs flex items-center gap-1 text-accent font-medium border border-accent/30"
+                    title="Analisar conversas e sugerir melhorias na base"
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">Diagnóstico</span>
+                  </button>
+                </>
               )}
               {!modoAtualizacao && (
                 <>

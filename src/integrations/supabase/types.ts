@@ -74,6 +74,93 @@ export type Database = {
         }
         Relationships: []
       }
+      cliente_memoria: {
+        Row: {
+          cidade: string | null
+          cliente_id: string
+          created_at: string
+          empresa: string | null
+          empresa_id: string
+          id: string
+          interesses: Json
+          nome: string | null
+          objecoes: Json
+          probabilidade_compra: number | null
+          produtos_vistos: Json
+          resumo: string | null
+          ultima_interacao: string | null
+          updated_at: string
+        }
+        Insert: {
+          cidade?: string | null
+          cliente_id: string
+          created_at?: string
+          empresa?: string | null
+          empresa_id: string
+          id?: string
+          interesses?: Json
+          nome?: string | null
+          objecoes?: Json
+          probabilidade_compra?: number | null
+          produtos_vistos?: Json
+          resumo?: string | null
+          ultima_interacao?: string | null
+          updated_at?: string
+        }
+        Update: {
+          cidade?: string | null
+          cliente_id?: string
+          created_at?: string
+          empresa?: string | null
+          empresa_id?: string
+          id?: string
+          interesses?: Json
+          nome?: string | null
+          objecoes?: Json
+          probabilidade_compra?: number | null
+          produtos_vistos?: Json
+          resumo?: string | null
+          ultima_interacao?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      conversas_agente: {
+        Row: {
+          auditor: Json | null
+          cliente_id: string | null
+          created_at: string
+          empresa_id: string
+          fontes: Json
+          id: string
+          pergunta: string
+          resposta: string
+          transferida_humano: boolean
+        }
+        Insert: {
+          auditor?: Json | null
+          cliente_id?: string | null
+          created_at?: string
+          empresa_id: string
+          fontes?: Json
+          id?: string
+          pergunta: string
+          resposta: string
+          transferida_humano?: boolean
+        }
+        Update: {
+          auditor?: Json | null
+          cliente_id?: string | null
+          created_at?: string
+          empresa_id?: string
+          fontes?: Json
+          id?: string
+          pergunta?: string
+          resposta?: string
+          transferida_humano?: boolean
+        }
+        Relationships: []
+      }
       diagnostico_atendimento: {
         Row: {
           created_at: string
