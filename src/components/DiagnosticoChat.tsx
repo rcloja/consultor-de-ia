@@ -15,6 +15,7 @@ import {
   interpretarResposta,
   type RespostaInterpretada,
 } from "@/lib/payloadValidation";
+import { RagReviewModal } from "@/components/RagReviewModal";
 
 const AGENT_ID = "arquiteto-conhecimento-ia";
 
@@ -1056,6 +1057,8 @@ export const DiagnosticoChat = ({ open, onClose, promptId, tokenMode = false }: 
   const [carregandoBase, setCarregandoBase] = useState(false);
   const [enviandoUpdate, setEnviandoUpdate] = useState(false);
   const [forcarCriacao, setForcarCriacao] = useState(false);
+  const [ragModalOpen, setRagModalOpen] = useState(false);
+  const [ragModalPayload, setRagModalPayload] = useState<{ prompt: string; base: Record<string, string[]> } | null>(null);
 
   // Pré-preenchimento (site + arquivos) — só no modo criação
   type PrefillStage = "form" | "processing" | "review" | "done";
@@ -1300,9 +1303,13 @@ export const DiagnosticoChat = ({ open, onClose, promptId, tokenMode = false }: 
       {
         role: "agent",
         text:
-          "✅ Implantação concluída a 100%. A persona do agente foi organizada internamente e enviada para o servidor. Se precisar ajustar alguma informação, é só me dizer.",
+          "✅ Implantação concluída a 100%. Agora vou gerar a memória vetorial (RAGs) do agente — abra a tela de revisão para aprovar.",
       },
     ]);
+
+    // Abre o modal de revisão das RAGs (gera prompt principal + 4 RAGs por IA via edge function)
+    setRagModalPayload({ prompt: promptPersona, base: baseFinal });
+    setRagModalOpen(true);
 
   };
 
