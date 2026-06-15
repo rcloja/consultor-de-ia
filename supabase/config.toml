@@ -20,6 +20,3 @@ verify_jwt = false
 
 [functions.sugestoes-base-gerar]
 verify_jwt = false
-
-[functions.atendimento-webhook]
-verify_jwt = false
