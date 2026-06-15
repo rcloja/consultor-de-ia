@@ -12,7 +12,9 @@ export default defineConfig(({ mode }) => ({
       overlay: false,
     },
   },
-  base: "/consultor/",
+  // Em dev/preview do Lovable o app é servido em "/"; só no build de produção
+  // (upload para atendenteai.com.br/consultor) usamos o subdiretório.
+  base: mode === "production" ? "/consultor/" : "/",
   plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
   resolve: {
     alias: {
