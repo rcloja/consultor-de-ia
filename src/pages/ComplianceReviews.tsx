@@ -79,17 +79,15 @@ export default function ComplianceReviews() {
 
   const load = async () => {
     setLoading(true);
-    const { data, error } = await supabase
-      .from("agent_compliance_reviews")
-      .select("*")
-      .order("created_at", { ascending: false })
-      .limit(500);
+    const { data, error } = await supabase.functions.invoke("admin-reviews", {
+      body: { action: "list", limit: 500 },
+    });
     setLoading(false);
     if (error) {
       toast({ title: "Erro ao carregar", description: error.message, variant: "destructive" });
       return;
     }
-    setReviews((data ?? []) as Review[]);
+    setReviews(((data?.reviews ?? []) as Review[]));
   };
 
   useEffect(() => { void load(); }, []);
@@ -118,14 +116,15 @@ export default function ComplianceReviews() {
   const updateDecision = async (status: ReviewStatus) => {
     if (!selected) return;
     setSaving(true);
-    const { error } = await supabase
-      .from("agent_compliance_reviews")
-      .update({
+    const { error } = await supabase.functions.invoke("admin-reviews", {
+      body: {
+        action: "update",
+        id: selected.id,
         review_status: status,
         human_notes: notes || null,
         human_reviewer_id: reviewer || null,
-      })
-      .eq("id", selected.id);
+      },
+    });
     setSaving(false);
     if (error) {
       toast({ title: "Erro ao salvar", description: error.message, variant: "destructive" });
