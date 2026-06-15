@@ -8,15 +8,3 @@ verify_jwt = false
 
 [functions.compliance-check]
 verify_jwt = false
-
-[functions.pesquisa-enviar]
-verify_jwt = false
-
-[functions.pesquisa-responder]
-verify_jwt = false
-
-[functions.diagnostico-gerar]
-verify_jwt = false
-
-[functions.sugestoes-base-gerar]
-verify_jwt = false
