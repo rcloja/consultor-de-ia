@@ -2543,11 +2543,19 @@ export const DiagnosticoChat = ({ open, onClose, promptId, tokenMode = false }: 
           open={ragModalOpen}
           onClose={() => setRagModalOpen(false)}
           onSaved={(n) => {
+            setMemoriaSalva(true);
             setMessages((m) => [
               ...m,
-              { role: "system", tone: "save", text: `Memória vetorial salva (${n} blocos). O agente já pode usar a busca semântica.` },
+              { role: "system", tone: "save", text: `Memória vetorial salva (${n} blocos). Clique em "Testar agente" para conversar com a IA já usando a base.` },
             ]);
           }}
+        />
+      )}
+      {agenteChatOpen && (
+        <AgenteTestChat
+          empresaId={conversationIdRef.current}
+          open={agenteChatOpen}
+          onClose={() => setAgenteChatOpen(false)}
         />
       )}
       <div className="w-full sm:max-w-5xl bg-card rounded-t-3xl sm:rounded-3xl shadow-elegant border border-border flex flex-col lg:flex-row h-[92vh] sm:h-[680px] overflow-hidden">
