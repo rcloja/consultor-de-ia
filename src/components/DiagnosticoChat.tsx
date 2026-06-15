@@ -2533,6 +2533,21 @@ export const DiagnosticoChat = ({ open, onClose, promptId, tokenMode = false }: 
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-foreground/40 backdrop-blur-sm p-0 sm:p-4 animate-fade-up">
+      {ragModalOpen && ragModalPayload && (
+        <RagReviewModal
+          empresaId={conversationIdRef.current}
+          promptPrincipal={ragModalPayload.prompt}
+          base={ragModalPayload.base}
+          open={ragModalOpen}
+          onClose={() => setRagModalOpen(false)}
+          onSaved={(n) => {
+            setMessages((m) => [
+              ...m,
+              { role: "system", tone: "save", text: `Memória vetorial salva (${n} blocos). O agente já pode usar a busca semântica.` },
+            ]);
+          }}
+        />
+      )}
       <div className="w-full sm:max-w-5xl bg-card rounded-t-3xl sm:rounded-3xl shadow-elegant border border-border flex flex-col lg:flex-row h-[92vh] sm:h-[680px] overflow-hidden">
         {/* Chat principal */}
         <div className="flex-1 flex flex-col min-w-0">
