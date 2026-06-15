@@ -100,11 +100,21 @@ function auditar(resposta: string, perguntaUsuario: string): AuditoriaResultado 
   const problemas: string[] = [];
   const r = resposta.trim();
   if (!r) problemas.push("Resposta vazia.");
-  if (r.length > 600) problemas.push(`Resposta muito longa (${r.length} caracteres). Reduza para no máximo 300.`);
+  if (r.length > 600) problemas.push(`Resposta muito longa (${r.length} caracteres). Reduza para uma mensagem curta de WhatsApp (máx. 4 linhas).`);
+  // Máximo de 4 linhas
+  const linhas = r.split(/\r?\n/).filter((l) => l.trim().length > 0);
+  if (linhas.length > 4) problemas.push(`Resposta com ${linhas.length} linhas. Reduza para no máximo 4 linhas.`);
   const baixo = r.toLowerCase();
   for (const ref of REFS_PROIBIDAS) {
     if (baixo.includes(ref)) {
       problemas.push(`Contém referência proibida ("${ref}"). Reescreva sem citar partes "acima/abaixo".`);
+      break;
+    }
+  }
+  // Frases de fricção (esconder preço, adiar resposta)
+  for (const fric of FRASES_FRICCAO) {
+    if (baixo.includes(fric)) {
+      problemas.push(`Contém frase de fricção ("${fric}"). Responda direto, apresente o preço/solução e finalize com uma CTA.`);
       break;
     }
   }
@@ -114,7 +124,17 @@ function auditar(resposta: string, perguntaUsuario: string): AuditoriaResultado 
   // perguntas: máximo 1
   const perguntas = (r.match(/\?/g) ?? []).length;
   if (perguntas > 1) problemas.push("Fez mais de uma pergunta. Faça no máximo uma por vez.");
-  // cobertura mínima: se a pergunta era curta e a resposta não tem nenhuma palavra-chave em comum
+
+  // Detecta intenção comercial na pergunta do cliente -> exige CTA na resposta
+  const temIntencaoCompra = PADROES_INTENCAO_COMPRA.some((re) => re.test(perguntaUsuario));
+  if (temIntencaoCompra) {
+    const temCTA = PADROES_CTA.some((re) => re.test(r));
+    if (!temCTA) {
+      problemas.push("Cliente demonstrou intenção comercial: finalize a resposta com uma CTA clara (ex.: 'Quer que eu te indique o plano ideal?', 'Posso simular sua operação?').");
+    }
+  }
+
+  // cobertura mínima: se a pergunta era razoável e a resposta não toca nela
   const palsPerg = perguntaUsuario.toLowerCase().match(/[a-záéíóúâêôãõç]{4,}/gi) ?? [];
   if (palsPerg.length >= 2) {
     const hit = palsPerg.some((p) => baixo.includes(p.toLowerCase()));
