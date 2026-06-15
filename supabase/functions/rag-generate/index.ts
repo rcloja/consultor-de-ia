@@ -193,7 +193,7 @@ A partir de uma base estruturada de uma empresa e de um rascunho de prompt princ
    - Quando transferir para humano
    - CTA OBRIGATÓRIO em respostas comerciais (sempre termina com uma chamada curta para a próxima etapa)
    - FLUXO: Entender → Recomendar → Fechar. Evitar Perguntar → Perguntar → Perguntar.
-   REMOVA do prompt qualquer FAQ, lista de produtos, preços, políticas detalhadas, casos de uso, exemplos longos — esses viram chunks de RAG. O prompt refinado deve ter no máximo ~1800 caracteres e ser conciso, em tópicos curtos.
+   REMOVA do prompt qualquer FAQ, lista de produtos, preços, políticas detalhadas, casos de uso, exemplos longos — esses viram chunks de RAG. O prompt refinado deve ter no máximo ~1500 caracteres, em tópicos curtos e linguagem natural. Se passar disso, REESCREVA mais enxuto. Nada de jargão acadêmico, nada de seções burocráticas.
 
 2) GERAR chunks de conhecimento em 6 categorias:
    - faq (6-10 itens): preço, prazo, garantia, cancelamento, entrega, suporte, troca, funcionamento. Respostas diretas, sem fricção.
