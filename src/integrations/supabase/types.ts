@@ -242,6 +242,63 @@ export type Database = {
         }
         Relationships: []
       }
+      prompts: {
+        Row: {
+          conteudo: string
+          created_at: string
+          empresa_id: string
+          id: string
+          titulo: string
+          updated_at: string
+        }
+        Insert: {
+          conteudo: string
+          created_at?: string
+          empresa_id: string
+          id?: string
+          titulo: string
+          updated_at?: string
+        }
+        Update: {
+          conteudo?: string
+          created_at?: string
+          empresa_id?: string
+          id?: string
+          titulo?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      rag_chunks: {
+        Row: {
+          categoria: string
+          conteudo: string
+          created_at: string
+          embedding: string | null
+          empresa_id: string
+          id: string
+          titulo: string
+        }
+        Insert: {
+          categoria: string
+          conteudo: string
+          created_at?: string
+          embedding?: string | null
+          empresa_id: string
+          id?: string
+          titulo: string
+        }
+        Update: {
+          categoria?: string
+          conteudo?: string
+          created_at?: string
+          embedding?: string | null
+          empresa_id?: string
+          id?: string
+          titulo?: string
+        }
+        Relationships: []
+      }
       sugestoes_base_conhecimento: {
         Row: {
           aprovado_em: string | null
@@ -289,7 +346,20 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      match_rag_chunks: {
+        Args: {
+          match_count?: number
+          p_empresa_id: string
+          query_embedding: string
+        }
+        Returns: {
+          categoria: string
+          conteudo: string
+          id: string
+          similarity: number
+          titulo: string
+        }[]
+      }
     }
     Enums: {
       compliance_decision: "liberado" | "revisao_humana" | "bloqueado"
