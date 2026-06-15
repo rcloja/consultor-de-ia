@@ -40,9 +40,16 @@ export function AgenteTestChat({ empresaId, open, onClose }: Props) {
     setInput("");
     setSending(true);
     try {
+      const clienteIdKey = `agente_cliente_${empresaId}`;
+      let clienteId = localStorage.getItem(clienteIdKey);
+      if (!clienteId) {
+        clienteId = `c_${crypto.randomUUID().slice(0, 8)}`;
+        localStorage.setItem(clienteIdKey, clienteId);
+      }
       const { data, error } = await supabase.functions.invoke("agente-chat", {
         body: {
           empresa_id: empresaId,
+          cliente_id: clienteId,
           messages: novas.map((m) => ({ role: m.role, content: m.content })),
         },
       });
