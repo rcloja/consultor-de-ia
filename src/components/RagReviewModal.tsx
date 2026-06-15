@@ -47,6 +47,13 @@ const ORDEM: RagCategoria[] = [
   "faq", "objecoes", "casos_de_uso", "vendas", "exemplos",
 ];
 
+interface Score {
+  total: number;
+  status: "aprovado" | "sugerir_melhorias" | "exigir_melhorias";
+  pontos_fortes: string[];
+  pontos_fracos: string[];
+}
+
 export function RagReviewModal({ empresaId, promptPrincipal, base, open, onClose, onSaved }: Props) {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -55,10 +62,13 @@ export function RagReviewModal({ empresaId, promptPrincipal, base, open, onClose
   const [promptId, setPromptId] = useState<string | null>(null);
   const [iaErro, setIaErro] = useState<string | null>(null);
   const [okMsg, setOkMsg] = useState<string | null>(null);
+  const [score, setScore] = useState<Score | null>(null);
+  const [promptRefinado, setPromptRefinado] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) return;
     setErro(null); setOkMsg(null); setChunks([]); setIaErro(null);
+    setScore(null); setPromptRefinado(null);
     setLoading(true);
     (async () => {
       try {
@@ -74,6 +84,8 @@ export function RagReviewModal({ empresaId, promptPrincipal, base, open, onClose
         setPromptId(data?.prompt_id ?? null);
         setChunks((data?.chunks_propostos ?? []) as RagChunk[]);
         setIaErro(data?.geracao_ia_erro ?? null);
+        setScore((data?.score ?? null) as Score | null);
+        setPromptRefinado(data?.prompt_principal_refinado ?? null);
       } catch (e) {
         setErro(e instanceof Error ? e.message : "Falha ao gerar RAGs");
       } finally {
