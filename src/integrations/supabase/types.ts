@@ -74,6 +74,69 @@ export type Database = {
         }
         Relationships: []
       }
+      diagnostico_atendimento: {
+        Row: {
+          created_at: string
+          csat_geral: number | null
+          csat_humano: number | null
+          csat_ia: number | null
+          detratores: number
+          empresa_id: string | null
+          gerado_em: string
+          id: string
+          neutros: number
+          nps: number | null
+          periodo_fim: string
+          periodo_inicio: string
+          pontos_fortes: Json
+          pontos_fracos: Json
+          promotores: number
+          sugestoes: Json
+          total_avaliacoes: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          csat_geral?: number | null
+          csat_humano?: number | null
+          csat_ia?: number | null
+          detratores?: number
+          empresa_id?: string | null
+          gerado_em?: string
+          id?: string
+          neutros?: number
+          nps?: number | null
+          periodo_fim: string
+          periodo_inicio: string
+          pontos_fortes?: Json
+          pontos_fracos?: Json
+          promotores?: number
+          sugestoes?: Json
+          total_avaliacoes?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          csat_geral?: number | null
+          csat_humano?: number | null
+          csat_ia?: number | null
+          detratores?: number
+          empresa_id?: string | null
+          gerado_em?: string
+          id?: string
+          neutros?: number
+          nps?: number | null
+          periodo_fim?: string
+          periodo_inicio?: string
+          pontos_fortes?: Json
+          pontos_fracos?: Json
+          promotores?: number
+          sugestoes?: Json
+          total_avaliacoes?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       implantador_logs: {
         Row: {
           agent_id: string | null
@@ -113,6 +176,114 @@ export type Database = {
         }
         Relationships: []
       }
+      pesquisa_satisfacao: {
+        Row: {
+          agente_utilizado: string | null
+          categoria: string | null
+          cliente_id: string | null
+          comentario: string | null
+          created_at: string
+          data_fim: string | null
+          data_inicio: string | null
+          empresa_id: string | null
+          id: string
+          motivo_contato: string | null
+          nome_atendente: string | null
+          nota: number | null
+          resumo_atendimento: string | null
+          status_envio: Database["public"]["Enums"]["status_envio_pesquisa"]
+          tempo_atendimento_segundos: number | null
+          tipo_atendimento:
+            | Database["public"]["Enums"]["tipo_atendimento"]
+            | null
+          updated_at: string
+        }
+        Insert: {
+          agente_utilizado?: string | null
+          categoria?: string | null
+          cliente_id?: string | null
+          comentario?: string | null
+          created_at?: string
+          data_fim?: string | null
+          data_inicio?: string | null
+          empresa_id?: string | null
+          id?: string
+          motivo_contato?: string | null
+          nome_atendente?: string | null
+          nota?: number | null
+          resumo_atendimento?: string | null
+          status_envio?: Database["public"]["Enums"]["status_envio_pesquisa"]
+          tempo_atendimento_segundos?: number | null
+          tipo_atendimento?:
+            | Database["public"]["Enums"]["tipo_atendimento"]
+            | null
+          updated_at?: string
+        }
+        Update: {
+          agente_utilizado?: string | null
+          categoria?: string | null
+          cliente_id?: string | null
+          comentario?: string | null
+          created_at?: string
+          data_fim?: string | null
+          data_inicio?: string | null
+          empresa_id?: string | null
+          id?: string
+          motivo_contato?: string | null
+          nome_atendente?: string | null
+          nota?: number | null
+          resumo_atendimento?: string | null
+          status_envio?: Database["public"]["Enums"]["status_envio_pesquisa"]
+          tempo_atendimento_segundos?: number | null
+          tipo_atendimento?:
+            | Database["public"]["Enums"]["tipo_atendimento"]
+            | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      sugestoes_base_conhecimento: {
+        Row: {
+          aprovado_em: string | null
+          aprovado_por: string | null
+          conteudo: string
+          created_at: string
+          empresa_id: string | null
+          id: string
+          origem: string | null
+          status: Database["public"]["Enums"]["sugestao_status"]
+          tipo: Database["public"]["Enums"]["sugestao_tipo"]
+          titulo: string | null
+          updated_at: string
+        }
+        Insert: {
+          aprovado_em?: string | null
+          aprovado_por?: string | null
+          conteudo: string
+          created_at?: string
+          empresa_id?: string | null
+          id?: string
+          origem?: string | null
+          status?: Database["public"]["Enums"]["sugestao_status"]
+          tipo?: Database["public"]["Enums"]["sugestao_tipo"]
+          titulo?: string | null
+          updated_at?: string
+        }
+        Update: {
+          aprovado_em?: string | null
+          aprovado_por?: string | null
+          conteudo?: string
+          created_at?: string
+          empresa_id?: string | null
+          id?: string
+          origem?: string | null
+          status?: Database["public"]["Enums"]["sugestao_status"]
+          tipo?: Database["public"]["Enums"]["sugestao_tipo"]
+          titulo?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -128,6 +299,10 @@ export type Database = {
         | "reprovado"
         | "ajustes_solicitados"
       compliance_risk_level: "baixo" | "medio" | "alto" | "critico"
+      status_envio_pesquisa: "pendente" | "enviada" | "respondida" | "expirada"
+      sugestao_status: "pendente" | "aprovada" | "rejeitada"
+      sugestao_tipo: "FAQ" | "PROMPT" | "TOM" | "FLUXO" | "OUTRO"
+      tipo_atendimento: "IA" | "HUMANO" | "HIBRIDO"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -263,6 +438,10 @@ export const Constants = {
         "ajustes_solicitados",
       ],
       compliance_risk_level: ["baixo", "medio", "alto", "critico"],
+      status_envio_pesquisa: ["pendente", "enviada", "respondida", "expirada"],
+      sugestao_status: ["pendente", "aprovada", "rejeitada"],
+      sugestao_tipo: ["FAQ", "PROMPT", "TOM", "FLUXO", "OUTRO"],
+      tipo_atendimento: ["IA", "HUMANO", "HIBRIDO"],
     },
   },
 } as const
