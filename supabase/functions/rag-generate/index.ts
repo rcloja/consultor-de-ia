@@ -205,7 +205,7 @@ A partir de uma base estruturada de uma empresa e de um rascunho de prompt princ
 
 3) AVALIAR a qualidade da implantação com um SCORE de 0 a 100.
    - 0-69 = exigir_melhorias, 70-85 = sugerir_melhorias, 86-100 = aprovado.
-   - Liste 2-5 pontos_fortes e 2-5 pontos_fracos curtos e objetivos. Penalize: prompt que pede muitas perguntas, prompt que esconde preços, ausência de CTA, ausência de postura de fechamento.
+   - Liste 2-5 pontos_fortes e 2-5 pontos_fracos curtos e objetivos. Penalize fortemente: prompt longo/burocrático/acadêmico, prompt que pede muitas perguntas, prompt que esconde preços, ausência de CTA, ausência de postura de fechamento, linguagem pouco natural.
 
 REGRAS ABSOLUTAS:
 - Responda APENAS com JSON válido no schema solicitado.
