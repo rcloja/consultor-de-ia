@@ -238,6 +238,37 @@ Deno.serve(async (req) => {
     });
   }
 
+  // Log da conversa (fire-and-forget)
+  const fontesPayload = chunks.map((c) => ({
+    categoria: c.categoria, titulo: c.titulo, similarity: Number(c.similarity.toFixed(3)),
+  }));
+  admin.from("conversas_agente").insert({
+    empresa_id: body.empresa_id,
+    cliente_id: body.cliente_id ?? null,
+    pergunta: ultima.content.slice(0, 4000),
+    resposta: resposta.slice(0, 4000),
+    fontes: fontesPayload,
+    auditor: { ok: auditoria.ok, problemas: auditoria.problemas, refeita },
+  }).then(({ error }) => { if (error) console.error("log conversa:", error); });
+
+  // Atualiza memória do cliente em background (não bloqueia resposta)
+  if (body.cliente_id && body.messages.length >= 2) {
+    const mensagensParaMem = [...body.messages, { role: "assistant" as const, content: resposta }];
+    fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/cliente-memoria-update`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+      },
+      body: JSON.stringify({
+        empresa_id: body.empresa_id,
+        cliente_id: body.cliente_id,
+        mensagens: mensagensParaMem,
+      }),
+    }).catch((e) => console.error("memoria-update bg:", e));
+  }
+
+
   return new Response(
     JSON.stringify({
       resposta,
