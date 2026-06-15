@@ -17,3 +17,10 @@ verify_jwt = false
 
 [functions.agente-chat]
 verify_jwt = false
+
+[functions.cliente-memoria-update]
+verify_jwt = false
+
+[functions.diagnostico-conversas]
+verify_jwt = false
+
