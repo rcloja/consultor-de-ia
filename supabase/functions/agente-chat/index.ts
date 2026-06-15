@@ -52,21 +52,49 @@ function montaContexto(chunks: Array<{ categoria: string; titulo: string; conteu
 const REGRAS_RESPOSTA = `REGRAS DE RESPOSTA (obrigatórias):
 - Use APENAS fatos dos TRECHOS DA BASE abaixo e do seu prompt principal. Não invente preços, prazos, garantias ou políticas.
 - Se a base não trouxer a resposta, diga com naturalidade que vai confirmar com a equipe e siga a conversa.
-- Estilo WhatsApp: 1 a 3 frases curtas, até ~300 caracteres. No máximo 1 pergunta por vez.
+- Estilo WhatsApp: no máximo 4 linhas, preferencialmente 1 parágrafo curto, até ~300 caracteres. No máximo 1 pergunta por vez.
 - Português do Brasil, tom cordial e profissional. Máximo 1 emoji discreto (🙂 ou 👍) quando fizer sentido.
 - NUNCA escreva "acima", "abaixo", "mencionado", "anteriormente", "conforme citado", "texto anterior".
-- Não cite "trechos", "documento", "base de conhecimento" ou números de referência ao cliente.`;
+- Não cite "trechos", "documento", "base de conhecimento" ou números de referência ao cliente.
+
+POSTURA DE CONSULTOR (obrigatório):
+- DIAGNÓSTICO RÁPIDO: faça no máximo 2 perguntas para entender segmento, operação atual e principal dificuldade. Se o cliente já trouxe essas informações, NÃO pergunte de novo — avance para a recomendação.
+- INTENÇÃO DE COMPRA: se o cliente perguntar preço, planos, como funciona, teste grátis, fidelidade, como contratar, cancelamento ou condições — NÃO faça novas perguntas investigativas. Responda direto com os dados da base e avance para o fechamento.
+- TRANSPARÊNCIA COMERCIAL: nunca esconda preço ou condição que esteja na base. Proibido usar frases como "antes preciso entender melhor" quando já houver dados para ajudar.
+- RECOMENDAÇÃO: aja como consultor experiente — sugira a opção mais adequada e diga em uma linha por quê.
+- CTA OBRIGATÓRIO em toda resposta comercial: termine com uma chamada curta ("Quer que eu te mostre os próximos passos?", "Posso simular para o seu caso?", "Quer começar um teste?").
+- FLUXO: Entender → Recomendar → Fechar. Evite Perguntar → Perguntar → Perguntar.`;
 
 interface AuditoriaResultado {
   ok: boolean;
   problemas: string[];
 }
 
+const FRASES_FRICCAO = [
+  "antes preciso entender", "antes de te passar", "antes de falar de valores",
+  "antes de informar o preço", "preciso entender melhor antes",
+];
+
+const GATILHOS_COMPRA = [
+  "quanto custa", "qual o preço", "qual o valor", "valores", "preço", "preços",
+  "plano", "planos", "como funciona", "teste grátis", "teste gratis", "free trial",
+  "fidelidade", "como contratar", "contratar", "cancelar", "cancelamento",
+  "condições", "condicoes", "mensalidade", "assinatura",
+];
+
+const CTA_HINTS = [
+  "quer", "posso", "vamos", "te mostro", "te mostrar", "simular", "próximo passo",
+  "proximo passo", "próximos passos", "proximos passos", "começar", "comecar",
+  "agendar", "testar", "iniciar",
+];
+
 function auditar(resposta: string, perguntaUsuario: string): AuditoriaResultado {
   const problemas: string[] = [];
   const r = resposta.trim();
   if (!r) problemas.push("Resposta vazia.");
-  if (r.length > 600) problemas.push(`Resposta muito longa (${r.length} caracteres). Reduza para no máximo 300.`);
+  if (r.length > 600) problemas.push(`Resposta muito longa (${r.length} caracteres). Reduza para no máximo ~300 e até 4 linhas.`);
+  const linhas = r.split(/\n+/).filter((l) => l.trim().length > 0).length;
+  if (linhas > 4) problemas.push(`Resposta com ${linhas} linhas. Máximo 4 linhas, preferência por 1 parágrafo.`);
   const baixo = r.toLowerCase();
   for (const ref of REFS_PROIBIDAS) {
     if (baixo.includes(ref)) {
@@ -74,13 +102,28 @@ function auditar(resposta: string, perguntaUsuario: string): AuditoriaResultado 
       break;
     }
   }
-  // emojis: máximo 1
+  for (const f of FRASES_FRICCAO) {
+    if (baixo.includes(f)) {
+      problemas.push(`Contém fricção comercial ("${f}"). Responda direto e avance para o fechamento.`);
+      break;
+    }
+  }
   const emojis = (r.match(/\p{Extended_Pictographic}/gu) ?? []).length;
   if (emojis > 1) problemas.push("Usou mais de um emoji. Use no máximo um, discreto.");
-  // perguntas: máximo 1
   const perguntas = (r.match(/\?/g) ?? []).length;
   if (perguntas > 1) problemas.push("Fez mais de uma pergunta. Faça no máximo uma por vez.");
-  // cobertura mínima: se a pergunta era curta e a resposta não tem nenhuma palavra-chave em comum
+
+  const perguntaBaixo = perguntaUsuario.toLowerCase();
+  const intencaoCompra = GATILHOS_COMPRA.some((g) => perguntaBaixo.includes(g));
+  if (intencaoCompra) {
+    if (perguntas >= 1 && !CTA_HINTS.some((c) => baixo.includes(c))) {
+      problemas.push("Cliente demonstrou intenção de compra mas a resposta apenas pergunta sem apresentar solução/CTA.");
+    }
+    if (!CTA_HINTS.some((c) => baixo.includes(c))) {
+      problemas.push("Resposta comercial sem CTA. Termine com uma chamada curta para o próximo passo.");
+    }
+  }
+
   const palsPerg = perguntaUsuario.toLowerCase().match(/[a-záéíóúâêôãõç]{4,}/gi) ?? [];
   if (palsPerg.length >= 2) {
     const hit = palsPerg.some((p) => baixo.includes(p.toLowerCase()));
