@@ -167,6 +167,55 @@ export function RagReviewModal({ empresaId, promptPrincipal, base, open, onClose
               <CheckCircle2 className="w-4 h-4 mt-0.5" /><span className="text-sm">{okMsg}</span>
             </div>
           )}
+
+          {!loading && score && (
+            <div className="rounded-xl border border-border bg-muted/30 p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-semibold">Score da implantação</h3>
+                <div className="flex items-center gap-2">
+                  <span className={`text-2xl font-bold tabular-nums ${
+                    score.total >= 86 ? "text-emerald-600"
+                    : score.total >= 70 ? "text-amber-600"
+                    : "text-destructive"
+                  }`}>{score.total}</span>
+                  <Badge variant={
+                    score.status === "aprovado" ? "default"
+                    : score.status === "sugerir_melhorias" ? "secondary"
+                    : "destructive"
+                  } className="text-[10px]">
+                    {score.status === "aprovado" ? "aprovado"
+                    : score.status === "sugerir_melhorias" ? "sugerir melhorias"
+                    : "exigir melhorias"}
+                  </Badge>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                <div>
+                  <p className="font-medium text-emerald-700 mb-1">Pontos fortes</p>
+                  <ul className="space-y-0.5">
+                    {score.pontos_fortes.map((p, i) => <li key={i}>✓ {p}</li>)}
+                  </ul>
+                </div>
+                <div>
+                  <p className="font-medium text-amber-700 mb-1">Pontos fracos</p>
+                  <ul className="space-y-0.5">
+                    {score.pontos_fracos.map((p, i) => <li key={i}>✗ {p}</li>)}
+                  </ul>
+                </div>
+              </div>
+              {promptRefinado && (
+                <details className="text-xs">
+                  <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
+                    Ver prompt principal refinado ({promptRefinado.length} caracteres)
+                  </summary>
+                  <pre className="mt-2 whitespace-pre-wrap bg-background border border-border rounded p-2 text-[11px] max-h-48 overflow-auto">
+{promptRefinado}
+                  </pre>
+                </details>
+              )}
+            </div>
+          )}
+
           {iaErro && !loading && (
             <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-500/10 text-amber-700 border border-amber-500/30 text-sm">
               <AlertCircle className="w-4 h-4 mt-0.5" />
