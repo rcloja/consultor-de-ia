@@ -234,8 +234,11 @@ async function carregarBaseExistente(
 ): Promise<LoadResult> {
   let resp: Response;
   const qs = modo === "token" ? "token" : "id";
+  const params = new URLSearchParams({ [qs]: id });
+  const agenteExterno = getAgenteExterno();
+  if (modo === "id" && agenteExterno) params.set("token", agenteExterno);
   try {
-    resp = await fetch(`${ENDPOINT}?${qs}=${encodeURIComponent(id)}`, {
+    resp = await fetch(`${ENDPOINT}?${params.toString()}`, {
       method: "GET",
       headers: { Accept: "application/json" },
     });
@@ -256,19 +259,24 @@ async function carregarBaseExistente(
       return { status: "parse", detail: "Resposta vazia do servidor." };
     }
 
-    // Resposta HTML/PHP (ex.: "<br /><b>Warning</b>...") — não é JSON válido
-    if (trimmed.startsWith("<")) {
+    const jsonStartObj = trimmed.indexOf("{");
+    const jsonStartArr = trimmed.indexOf("[");
+    const starts = [jsonStartObj, jsonStartArr].filter((n) => n >= 0);
+    const jsonStart = starts.length ? Math.min(...starts) : -1;
+    const jsonText = trimmed.startsWith("<") && jsonStart >= 0 ? trimmed.slice(jsonStart) : trimmed;
+    if (trimmed.startsWith("<") && jsonStart < 0) {
       console.error("Endpoint retornou HTML/PHP em vez de JSON:", trimmed.slice(0, 200));
+      if (/\bnull\s*$/i.test(trimmed)) return { status: "notfound" };
       return {
         status: "parse",
         detail:
-          "O servidor retornou HTML/PHP em vez de JSON (provável warning/notice do PHP). Verifique o endpoint consultor.php e garanta Content-Type: application/json sem outputs extras.",
+          "O servidor retornou HTML/PHP em vez de JSON. Se houver warnings antes do JSON, corrija o endpoint consultor.php para não emitir outputs extras.",
       };
     }
 
     let data: unknown;
     try {
-      data = JSON.parse(trimmed);
+      data = JSON.parse(jsonText);
     } catch (e) {
       const detail = e instanceof Error ? e.message : String(e);
       console.error("Falha ao parsear JSON da base:", detail, trimmed.slice(0, 200));
