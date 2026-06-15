@@ -12,9 +12,9 @@ export default defineConfig(({ mode }) => ({
       overlay: false,
     },
   },
-  // Em dev/preview do Lovable o app é servido em "/"; só no build de produção
-  // (upload para atendenteai.com.br/consultor) usamos o subdiretório.
-  base: mode === "production" ? "/consultor/" : "/",
+  // Servido sempre na raiz. Para hospedar em atendenteai.com.br/consultor,
+  // gere um build dedicado com `VITE_BASE=/consultor/ vite build`.
+  base: process.env.VITE_BASE ?? "/",
   plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
   resolve: {
     alias: {
