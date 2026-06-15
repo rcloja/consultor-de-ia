@@ -19,6 +19,7 @@ interface ReqBody {
   empresa_id: string;
   messages: Msg[];
   top_k?: number;
+  cliente_id?: string;
 }
 
 const EMBED_MODEL = "text-embedding-3-small";
