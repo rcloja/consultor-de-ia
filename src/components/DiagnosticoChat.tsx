@@ -2609,6 +2609,16 @@ export const DiagnosticoChat = ({ open, onClose, promptId, tokenMode = false }: 
               )}
             </div>
             <div className="flex items-center gap-1">
+              {memoriaSalva && (
+                <button
+                  onClick={() => setAgenteChatOpen(true)}
+                  className="px-2.5 py-1.5 rounded-xl bg-primary/10 hover:bg-primary/20 transition text-xs flex items-center gap-1 text-primary font-medium border border-primary/30"
+                  title="Conversar com o agente usando a memória vetorial"
+                >
+                  <Bot className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Testar agente</span>
+                </button>
+              )}
               {!modoAtualizacao && (
                 <>
                   {(messages.length > 0 || Object.keys(base).length > 0) && (
