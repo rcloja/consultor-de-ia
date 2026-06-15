@@ -9,6 +9,7 @@ interface Msg {
   role: "user" | "assistant";
   content: string;
   fontes?: Array<{ categoria: string; titulo: string; similarity: number }>;
+  auditor?: { ok: boolean; refeita: boolean; problemas: string[] };
 }
 
 interface Props {
