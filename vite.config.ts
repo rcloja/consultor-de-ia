@@ -12,9 +12,11 @@ export default defineConfig(({ mode }) => ({
       overlay: false,
     },
   },
-  // Servido sempre na raiz. Para hospedar em atendenteai.com.br/consultor,
-  // gere um build dedicado com `VITE_BASE=/consultor/ vite build`.
-  base: process.env.VITE_BASE ?? "/",
+  // Em desenvolvimento (preview Lovable) servimos na raiz "/".
+  // Em produção o destino final é https://atendenteai.com.br/consultor/,
+  // então usamos "/consultor/" por padrão no build. Pode ser sobrescrito
+  // com a variável de ambiente VITE_BASE se precisar publicar em outro caminho.
+  base: process.env.VITE_BASE ?? (mode === "production" ? "/consultor/" : "/"),
   plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
   resolve: {
     alias: {
